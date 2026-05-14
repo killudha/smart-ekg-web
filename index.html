@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart ECG Dashboard - Pure TFLite</title>
+    <title>Smart ECG Dashboard - v2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite/dist/tf-tflite.min.js"></script>
 </head>
 <body class="bg-blue-50 font-sans" x-data="{ 
@@ -16,51 +16,51 @@
     username: '',
     password: '',
     bpm: 75,
-    aiResult: 'Memuat Model...',
+    aiResult: 'Inisialisasi...',
     tfliteModel: null,
 
-    // Fungsi load model TFLite
     async loadModel() {
+        this.aiResult = 'Memuat Model...';
         try {
+            // Path harus relatif './' agar terbaca di Netlify
             this.tfliteModel = await tflite.loadTFLiteModel('./model_ekg_hybrid.tflite');
-            this.aiResult = 'Model Siap';
-            console.log('Model TFLite Berhasil Dimuat');
+            this.aiResult = 'Model Aktif';
+            console.log('TFLite Model Loaded Successfully');
         } catch (e) {
             this.aiResult = 'Gagal Load Model';
-            console.error(e);
+            console.error('Error loading TFLite:', e);
+            alert('File model_ekg_hybrid.tflite tidak ditemukan di folder yang sama!');
         }
     },
 
-    // Prediksi Murni dari Model (No Manual Logic)
     async runInference(inputData) {
         if (!this.tfliteModel) return;
-
-        // Siapkan tensor sesuai input model (1, 375, 1)
-        const input = tf.tensor(inputData, [1, 375, 1], 'float32');
-        const output = this.tfliteModel.predict(input);
-        const predictions = await output.data();
-        
-        // Ambil index dengan probabilitas tertinggi
-        const maxIndex = predictions.indexOf(Math.max(...predictions));
-        
-        // Mapping hasil berdasarkan label di Python
-        const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
-        this.aiResult = labels[maxIndex];
-
-        // Cleanup memory
-        input.dispose();
-        output.dispose();
+        try {
+            const inputTensor = tf.tensor(inputData, [1, 375, 1], 'float32');
+            const output = this.tfliteModel.predict(inputTensor);
+            const predictions = await output.data();
+            
+            const maxIndex = predictions.indexOf(Math.max(...predictions));
+            const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
+            
+            this.aiResult = labels[maxIndex];
+            
+            inputTensor.dispose();
+            if(output.dispose) output.dispose();
+        } catch (err) {
+            console.error('Inference error:', err);
+        }
     },
 
     generateECGPoint(t) {
-        let phase = t % 1.0;
-        let val = 0;
-        val += 0.12 * Math.exp(-Math.pow(phase - 0.2, 2) / 0.002);
-        val -= 0.15 * Math.exp(-Math.pow(phase - 0.38, 2) / 0.0001);
-        val += 1.8 * Math.exp(-Math.pow(phase - 0.4, 2) / 0.0001);
-        val -= 0.25 * Math.exp(-Math.pow(phase - 0.42, 2) / 0.0001);
-        val += 0.25 * Math.exp(-Math.pow(phase - 0.7, 2) / 0.005);
-        return val + (Math.random() * 0.02);
+        let p = t % 1.0;
+        let v = 0;
+        v += 0.12 * Math.exp(-Math.pow(p - 0.2, 2) / 0.002);
+        v -= 0.15 * Math.exp(-Math.pow(p - 0.38, 2) / 0.0001);
+        v += 1.8 * Math.exp(-Math.pow(p - 0.4, 2) / 0.0001);
+        v -= 0.25 * Math.exp(-Math.pow(p - 0.42, 2) / 0.0001);
+        v += 0.25 * Math.exp(-Math.pow(p - 0.7, 2) / 0.005);
+        return v + (Math.random() * 0.02);
     },
 
     initChart() {
@@ -69,7 +69,7 @@
             if (window.myChart) window.myChart.destroy();
             
             let time = 0;
-            let bufferData = Array.from({length: 375}, () => 0); // Buffer untuk input AI
+            let buffer = Array.from({length: 375}, () => 0);
 
             window.myChart = new Chart(ctx, {
                 type: 'line',
@@ -77,11 +77,12 @@
                     labels: Array.from({length: 100}, (_, i) => i),
                     datasets: [{
                         data: Array.from({length: 100}, () => 0),
-                        borderColor: '#2563eb',
-                        borderWidth: 2,
+                        borderColor: '#3b82f6',
+                        borderWidth: 3,
                         pointRadius: 0,
                         tension: 0.2,
-                        fill: false
+                        fill: true,
+                        backgroundColor: 'rgba(59, 130, 246, 0.05)'
                     }]
                 },
                 options: {
@@ -91,40 +92,39 @@
                 }
             });
 
-            setInterval(async () => {
+            setInterval(() => {
                 if(this.menu === 'monitoring' && this.isLoggedIn) {
-                    let freq = this.bpm / 60;
-                    time += 0.01 * freq;
-                    let nextPoint = this.generateECGPoint(time);
+                    let step = (this.bpm / 60) * 0.015;
+                    time += step;
+                    let val = this.generateECGPoint(time);
                     
                     window.myChart.data.datasets[0].data.shift();
-                    window.myChart.data.datasets[0].data.push(nextPoint);
+                    window.myChart.data.datasets[0].data.push(val);
                     window.myChart.update('none');
 
-                    // Masukkan ke buffer AI
-                    bufferData.shift();
-                    bufferData.push(nextPoint);
+                    buffer.shift();
+                    buffer.push(val);
                 }
             }, 30);
 
-            // Jalankan Inferensi setiap 1 detik
             setInterval(() => {
-                if(this.isLoggedIn && this.menu === 'monitoring') {
-                    this.runInference(bufferData);
-                }
+                if(this.isLoggedIn && this.menu === 'monitoring') this.runInference(buffer);
             }, 1000);
         });
     }
 }">
 
     <template x-if="!isLoggedIn">
-        <div class="min-h-screen flex items-center justify-center bg-blue-900">
-            <div class="bg-white p-10 rounded-3xl shadow-2xl w-96">
-                <h2 class="text-2xl font-black text-center mb-6 text-blue-900 uppercase">Smart ECG Pure AI</h2>
+        <div class="min-h-screen flex items-center justify-center bg-slate-900">
+            <div class="bg-white p-10 rounded-[2rem] shadow-2xl w-full max-w-md border-t-[10px] border-blue-600">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Smart ECG</h2>
+                    <p class="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">AI Diagnostics Portal</p>
+                </div>
                 <div class="space-y-4">
-                    <input type="text" x-model="username" placeholder="Admin" class="w-full p-4 border rounded-xl outline-none">
-                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 border rounded-xl outline-none">
-                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; loadModel(); initChart();} else {alert('Gagal!')}" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">LOGIN</button>
+                    <input type="text" x-model="username" placeholder="Username" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; loadModel(); initChart();} else {alert('Akses Ditolak')}" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition">LOGIN ADMIN</button>
                 </div>
             </div>
         </div>
@@ -132,42 +132,75 @@
 
     <template x-if="isLoggedIn">
         <div class="flex min-h-screen">
-            <aside class="w-64 bg-slate-900 text-white flex flex-col p-6 shadow-2xl">
-                <div class="mb-10 text-center text-blue-500 font-black text-xl">DASHBOARD</div>
-                <nav class="flex-1 space-y-4">
-                    <button @click="menu='monitoring'" :class="menu==='monitoring' ? 'text-blue-400' : ''">📡 Monitoring</button>
-                    <button @click="menu='team'" :class="menu==='team' ? 'text-blue-400' : ''">👥 Team</button>
+            <aside class="w-72 bg-slate-900 text-white flex flex-col p-6 shadow-2xl">
+                <div class="mb-10 px-4">
+                    <h1 class="text-2xl font-black text-blue-500 tracking-tighter">ADMIN <span class="text-white font-light">PANEL</span></h1>
+                    <div class="h-1 w-12 bg-blue-600 mt-2"></div>
+                </div>
+                <nav class="flex-1 space-y-2">
+                    <button @click="menu='monitoring'; initChart()" :class="menu==='monitoring' ? 'bg-blue-600 shadow-lg' : 'hover:bg-slate-800'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">📡 Monitoring</button>
+                    <button @click="menu='team'" :class="menu==='team' ? 'bg-blue-600 shadow-lg' : 'hover:bg-slate-800'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">👥 Team Members</button>
+                    <button @click="menu='account'" :class="menu==='account' ? 'bg-blue-600 shadow-lg' : 'hover:bg-slate-800'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">👤 Account Info</button>
                 </nav>
-                <button @click="isLoggedIn=false" class="text-red-400 font-bold">LOGOUT</button>
+                <div class="mt-auto p-4 border-t border-slate-800">
+                    <button @click="isLoggedIn=false" class="w-full py-3 text-red-400 font-bold hover:bg-red-950/30 rounded-xl transition">LOGOUT</button>
+                </div>
             </aside>
 
-            <main class="flex-1 p-10 bg-white">
-                <div x-show="menu === 'monitoring'">
-                    <h2 class="text-2xl font-black mb-6">Real-Time AI Classification</h2>
-                    <div class="bg-slate-50 p-8 rounded-[2rem] border">
-                        <div class="h-64 bg-white rounded-2xl mb-8 border relative">
-                            <canvas id="ecgChart"></canvas>
+            <main class="flex-1 p-10 overflow-y-auto">
+                <div x-show="menu === 'monitoring'" x-transition>
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-4xl font-black text-slate-800 tracking-tighter italic">Live Analysis</h2>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-black bg-blue-100 text-blue-600 px-3 py-1 rounded-full uppercase">model_ekg_hybrid.tflite</span>
+                            <div class="w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
                         </div>
+                    </div>
+
+                    <div class="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100">
+                        <div class="h-80 bg-slate-50 rounded-[2rem] mb-8 relative overflow-hidden border border-slate-100">
+                            <div class="absolute inset-0 opacity-[0.05]" style="background-image: linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px); background-size: 20px 20px;"></div>
+                            <canvas id="ecgChart" class="relative z-10"></canvas>
+                        </div>
+                        
                         <div class="grid grid-cols-2 gap-8">
-                            <div class="p-8 bg-blue-600 rounded-3xl text-white shadow-xl text-center">
-                                <p class="text-xs font-black opacity-60 mb-2 uppercase">Input BPM</p>
-                                <p class="text-5xl font-black" x-text="bpm"></p>
+                            <div class="p-8 bg-blue-600 rounded-[2.5rem] text-white shadow-xl shadow-blue-200">
+                                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Current Heart Rate</p>
+                                <p class="text-6xl font-black" x-text="bpm + ' BPM'"></p>
                             </div>
-                            <div class="p-8 bg-white border-4 border-blue-600 rounded-3xl text-center">
-                                <p class="text-xs font-black text-slate-400 mb-2 uppercase">AI Prediction (Murni TFLite)</p>
-                                <p class="text-3xl font-black text-blue-600" x-text="aiResult"></p>
+                            <div class="p-8 bg-white border-4 border-blue-600 rounded-[2.5rem] text-center">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI Pure Classification</p>
+                                <p class="text-4xl font-black text-blue-600" x-text="aiResult"></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div x-show="menu === 'team'">
-                    <h2 class="text-2xl font-black mb-8 text-center">Development Team</h2>
-                    <div class="grid grid-cols-2 gap-4 max-w-2xl mx-auto text-center font-bold">
-                        <div class="bg-white p-6 rounded-2xl border">Maqrefa Akbar<br><span class="text-blue-500">2307421037</span></div>
-                        <div class="bg-white p-6 rounded-2xl border">Ghea Geltra Ambarwinoto<br><span class="text-blue-500">2307421038</span></div>
-                        <div class="bg-white p-6 rounded-2xl border">Naora Adhani<br><span class="text-blue-500">2307421041</span></div>
-                        <div class="bg-white p-6 rounded-2xl border">Shanazsiva Nasra<br><span class="text-blue-500">2307421044</span></div>
+                <div x-show="menu === 'team'" x-transition>
+                    <h2 class="text-3xl font-black text-slate-800 mb-10 text-center tracking-tighter">Project Collaborators</h2>
+                    <div class="grid grid-cols-2 gap-6 max-w-4xl mx-auto">
+                        <template x-for="m in [
+                            {n:'Maqrefa Akbar', id:'2307421037'},
+                            {n:'Ghea Geltra Ambarwinoto', id:'2307421038'},
+                            {n:'Naora Adhani', id:'2307421041'},
+                            {n:'Shanazsiva Nasra', id:'2307421044'}
+                        ]">
+                            <div class="bg-white p-8 rounded-3xl shadow-lg border-2 border-slate-50 text-center hover:border-blue-500 transition group">
+                                <p class="text-xl font-black text-slate-800 group-hover:text-blue-600" x-text="m.n"></p>
+                                <p class="text-blue-500 font-mono font-bold mt-1" x-text="m.id"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="menu === 'account'" x-transition>
+                    <h2 class="text-3xl font-black text-slate-800 mb-8 tracking-tighter italic">Admin Credentials</h2>
+                    <div class="max-w-md bg-white p-10 rounded-[2.5rem] shadow-xl border-l-[12px] border-blue-600">
+                        <div class="space-y-6">
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Access Level</p><p class="text-xl font-bold">Primary Administrator</p></div>
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Institution</p><p class="text-xl font-bold">Politeknik Negeri Jakarta</p></div>
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Email Access</p><p class="text-xl font-bold">admin.smart@pnj.ac.id</p></div>
+                        </div>
                     </div>
                 </div>
             </main>
