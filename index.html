@@ -3,33 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart ECG Dashboard - v2.2 GitHub Edition</title>
+    <title>Smart ECG Dashboard - v2.3 Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/tf-tflite.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body class="bg-blue-50 font-sans" x-data="{ 
     isLoggedIn: false, 
     menu: 'monitoring',
     username: '',
     password: '',
-    bpm: 75,
+    bpm: 0, 
     aiResult: 'Inisialisasi...',
     tfliteModel: null,
+
+    // 1. KONFIGURASI FIREBASE (Masukkan Config dari Console Firebase Kamu)
+    initFirebase() {
+        const firebaseConfig = {
+            apiKey: 'AIzaSy...',
+            authDomain: 'projek-ekg.firebaseapp.com',
+            databaseURL: 'https://projek-ekg-default-rtdb.firebaseio.com', // <--- Pastikan URL ini benar
+            projectId: 'projek-ekg',
+            storageBucket: 'projek-ekg.appspot.com',
+            messagingSenderId: '...',
+            appId: '...'
+        };
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Ambil data BPM secara Realtime
+        const bpmRef = firebase.database().ref('sensor/bpm'); // <--- Sesuaikan path di database kamu
+        bpmRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data !== null) {
+                this.bpm = data;
+                console.log('BPM dari Firebase:', this.bpm);
+            }
+        });
+    },
 
     async loadModel() {
         this.aiResult = 'Memuat Model...';
         try {
-            // Path relatif langsung, pastikan model_ekg_hybrid.tflite ada di root repo GitHub
-            this.tfliteModel = await tflite.loadTFLiteModel('model_ekg_hybrid.tflite');
+            // Gunakan full URL jika path relatif sering gagal di Netlify
+            const modelUrl = window.location.origin + '/model_ekg_hybrid.tflite';
+            this.tfliteModel = await tflite.loadTFLiteModel(modelUrl);
             this.aiResult = 'Model Aktif';
-            console.log('Model TFLite Berhasil Dimuat');
+            console.log('Model Berhasil Dimuat dari:', modelUrl);
         } catch (e) {
             this.aiResult = 'Gagal Load';
-            console.error('Error:', e);
+            console.error('TFLite Load Error:', e);
         }
     },
 
@@ -39,15 +70,11 @@
             const inputTensor = tf.tensor(inputData, [1, 375, 1], 'float32');
             const output = this.tfliteModel.predict(inputTensor);
             const predictions = await output.data();
-            
             const maxIndex = predictions.indexOf(Math.max(...predictions));
             const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
-            
             this.aiResult = labels[maxIndex];
             inputTensor.dispose();
-        } catch (err) {
-            console.error('Inference Error:', err);
-        }
+        } catch (err) { console.error(err); }
     },
 
     generateECGPoint(t) {
@@ -65,7 +92,6 @@
         this.$nextTick(() => {
             const ctx = document.getElementById('ecgChart').getContext('2d');
             if (window.myChart) window.myChart.destroy();
-            
             let time = 0;
             let buffer = Array.from({length: 375}, () => 0);
 
@@ -92,23 +118,19 @@
 
             setInterval(() => {
                 if(this.menu === 'monitoring' && this.isLoggedIn) {
-                    let step = (this.bpm / 60) * 0.015;
-                    time += step;
+                    // Kecepatan grafik otomatis ikut BPM Firebase
+                    let speed = this.bpm > 0 ? (this.bpm / 60) * 0.015 : 0.015;
+                    time += speed;
                     let val = this.generateECGPoint(time);
-                    
                     window.myChart.data.datasets[0].data.shift();
                     window.myChart.data.datasets[0].data.push(val);
                     window.myChart.update('none');
-
-                    buffer.shift();
-                    buffer.push(val);
+                    buffer.shift(); buffer.push(val);
                 }
             }, 30);
 
             setInterval(() => {
-                if(this.isLoggedIn && this.menu === 'monitoring' && this.tfliteModel) {
-                    this.runInference(buffer);
-                }
+                if(this.isLoggedIn && this.menu === 'monitoring') this.runInference(buffer);
             }, 1000);
         });
     }
@@ -117,14 +139,14 @@
     <template x-if="!isLoggedIn">
         <div class="min-h-screen flex items-center justify-center bg-slate-900 px-4">
             <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-t-[12px] border-blue-600">
-                <div class="text-center mb-10">
-                    <h2 class="text-3xl font-black text-slate-800 tracking-tighter uppercase">Smart ECG AI</h2>
-                    <p class="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mt-1 italic">Pure TFLite Inference</p>
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Smart ECG</h2>
+                    <p class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Firebase & TFLite Integrated</p>
                 </div>
                 <div class="space-y-4">
-                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 transition">
-                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 transition">
-                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; loadModel(); initChart();} else {alert('Login Gagal!')}" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition transform active:scale-95">LOGIN DASHBOARD</button>
+                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none">
+                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none">
+                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; initFirebase(); loadModel(); initChart();} else {alert('Gagal!')}" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition">LOGIN</button>
                 </div>
             </div>
         </div>
@@ -134,27 +156,23 @@
         <div class="flex min-h-screen">
             <aside class="w-72 bg-slate-900 text-white flex flex-col p-8 shadow-2xl">
                 <div class="mb-12">
-                    <h1 class="text-2xl font-black text-white">ADMIN<span class="text-blue-500">_SYSTEM</span></h1>
-                    <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1 italic">v2.2 TFLite</p>
+                    <h1 class="text-2xl font-black">ADMIN<span class="text-blue-500">_ECG</span></h1>
+                    <p class="text-[9px] text-slate-500 font-bold uppercase mt-1">Realtime Monitoring</p>
                 </div>
-                <nav class="flex-1 space-y-3 text-sm">
-                    <button @click="menu='monitoring'; initChart()" :class="menu==='monitoring' ? 'bg-blue-600 shadow-lg' : 'text-slate-400 hover:text-white'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">📡 Monitoring (Live)</button>
-                    <button @click="menu='team'" :class="menu==='team' ? 'bg-blue-600 shadow-lg' : 'text-slate-400 hover:text-white'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">👥 Project Team</button>
-                    <button @click="menu='account'" :class="menu==='account' ? 'bg-blue-600 shadow-lg' : 'text-slate-400 hover:text-white'" class="w-full flex items-center p-4 rounded-2xl transition font-bold">👤 Account Settings</button>
+                <nav class="flex-1 space-y-3">
+                    <button @click="menu='monitoring'; initChart()" :class="menu==='monitoring' ? 'bg-blue-600 shadow-lg' : 'text-slate-400'" class="w-full text-left p-4 rounded-2xl font-bold transition">📡 Monitoring</button>
+                    <button @click="menu='team'" :class="menu==='team' ? 'bg-blue-600 shadow-lg' : 'text-slate-400'" class="w-full text-left p-4 rounded-2xl font-bold transition">👥 Team</button>
                 </nav>
-                <button @click="isLoggedIn=false" class="mt-auto py-3 text-red-500 font-black border-2 border-red-900/30 rounded-2xl hover:bg-red-600 hover:text-white transition uppercase text-xs tracking-widest">Logout</button>
+                <button @click="isLoggedIn=false" class="py-3 text-red-500 font-black border-2 border-red-900/30 rounded-2xl">LOGOUT</button>
             </aside>
 
             <main class="flex-1 p-12 bg-white overflow-y-auto">
-                <div x-show="menu === 'monitoring'" x-transition>
+                <div x-show="menu === 'monitoring'">
                     <div class="flex justify-between items-center mb-10">
-                        <div>
-                            <h2 class="text-4xl font-black text-slate-900 tracking-tighter uppercase">AI ECG Monitor</h2>
-                            <p class="text-blue-600 font-bold text-xs uppercase tracking-widest">Inference: model_ekg_hybrid.tflite</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Stream Active</span>
+                        <h2 class="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Live Stream</h2>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-black bg-blue-100 text-blue-600 px-3 py-1 rounded-full uppercase">model_ekg_hybrid.tflite</span>
+                            <div class="w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
                         </div>
                     </div>
 
@@ -163,34 +181,15 @@
                             <div class="absolute inset-0 opacity-[0.04]" style="background-image: linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px); background-size: 25px 25px;"></div>
                             <canvas id="ecgChart" class="relative z-10"></canvas>
                         </div>
-                        
                         <div class="grid grid-cols-2 gap-10">
                             <div class="p-10 bg-blue-600 rounded-[3rem] text-white shadow-2xl shadow-blue-200">
-                                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Simulated Heart Rate</p>
+                                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Realtime BPM (Firebase)</p>
                                 <p class="text-7xl font-black" x-text="bpm + ' BPM'"></p>
                             </div>
                             <div class="p-10 bg-white border-[6px] border-blue-600 rounded-[3rem] text-center">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Pure TFLite Result</p>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI TFLite Result</p>
                                 <p class="text-5xl font-black text-blue-600 uppercase" x-text="aiResult"></p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div x-show="menu === 'team'">
-                    <h2 class="text-3xl font-black text-slate-900 mb-12 text-center uppercase tracking-widest">Project Team</h2>
-                    <div class="grid grid-cols-2 gap-8 max-w-4xl mx-auto">
-                        <div class="bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-50 text-center">
-                            <p class="text-2xl font-black text-slate-800">Maqrefa Akbar</p><p class="text-blue-600 font-mono font-bold mt-2 text-sm">2307421037</p>
-                        </div>
-                        <div class="bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-50 text-center">
-                            <p class="text-2xl font-black text-slate-800">Ghea Geltra Ambarwinoto</p><p class="text-blue-600 font-mono font-bold mt-2 text-sm">2307421038</p>
-                        </div>
-                        <div class="bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-50 text-center">
-                            <p class="text-2xl font-black text-slate-800">Naora Adhani</p><p class="text-blue-600 font-mono font-bold mt-2 text-sm">2307421041</p>
-                        </div>
-                        <div class="bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-50 text-center">
-                            <p class="text-2xl font-black text-slate-800">Shanazsiva Nasra</p><p class="text-blue-600 font-mono font-bold mt-2 text-sm">2307421044</p>
                         </div>
                     </div>
                 </div>
