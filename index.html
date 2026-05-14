@@ -8,62 +8,83 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 font-sans" x-data="{ 
+<body class="bg-blue-50 font-sans" x-data="{ 
     isLoggedIn: false, 
     menu: 'monitoring',
     username: '',
     password: '',
+    bpm: 45, // <--- Ubah di sini untuk tes (45 = Bradikardia)
+    
+    generateECGPoint(t) {
+        // Logika Matematika Gelombang P-QRS-T Realistis
+        let phase = t % 1.0;
+        let val = 0;
+        // P Wave (Atrial Depolarization)
+        val += 0.12 * Math.exp(-Math.pow(phase - 0.2, 2) / 0.002);
+        // QRS Complex (Ventricular Depolarization) - Sharp Peak
+        val -= 0.15 * Math.exp(-Math.pow(phase - 0.38, 2) / 0.0001);
+        val += 1.8 * Math.exp(-Math.pow(phase - 0.4, 2) / 0.0001);
+        val -= 0.25 * Math.exp(-Math.pow(phase - 0.42, 2) / 0.0001);
+        // T Wave (Ventricular Repolarization)
+        val += 0.25 * Math.exp(-Math.pow(phase - 0.7, 2) / 0.005);
+        return val + (Math.random() * 0.03); 
+    },
+
     initChart() {
         this.$nextTick(() => {
             const ctx = document.getElementById('ecgChart').getContext('2d');
             if (window.myChart) window.myChart.destroy();
+            
+            let time = 0;
             window.myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: Array.from({length: 50}, (_, i) => i),
+                    labels: Array.from({length: 100}, (_, i) => i),
                     datasets: [{
-                        label: 'Sinyal EKG (mV)',
-                        data: Array.from({length: 50}, () => Math.random() * 2),
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 2,
+                        data: Array.from({length: 100}, () => 0),
+                        borderColor: '#2563eb',
+                        borderWidth: 2.5,
                         pointRadius: 0,
-                        tension: 0.4
+                        tension: 0.2,
+                        fill: true,
+                        backgroundColor: 'rgba(37, 99, 235, 0.05)'
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 500 },
-                    scales: { y: { min: 0, max: 3 }, x: { display: false } }
+                    responsive: true, maintainAspectRatio: false,
+                    animation: false,
+                    scales: { 
+                        y: { min: -0.5, max: 2.5, grid: { color: '#e5e7eb' } },
+                        x: { display: false }
+                    },
+                    plugins: { legend: { display: false } }
                 }
             });
+
+            // Kecepatan grafik sinkron dengan BPM
             setInterval(() => {
-                if(this.menu === 'monitoring') {
+                if(this.menu === 'monitoring' && this.isLoggedIn) {
+                    // Rumus frekuensi berdasarkan BPM
+                    let frequency = this.bpm / 60; 
+                    time += 0.02 * frequency; 
+                    
                     window.myChart.data.datasets[0].data.shift();
-                    window.myChart.data.datasets[0].data.push(Math.random() * 2);
+                    window.myChart.data.datasets[0].data.push(this.generateECGPoint(time));
                     window.myChart.update('none');
                 }
-            }, 200);
+            }, 30);
         });
-    },
-    login() {
-        if(this.username === 'admin1' && this.password === 'pnj2026') {
-            this.isLoggedIn = true;
-            this.initChart();
-        } else {
-            alert('Akses Ditolak!');
-        }
     }
 }">
 
     <template x-if="!isLoggedIn">
-        <div class="min-h-screen flex items-center justify-center bg-slate-900">
-            <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 border-t-8 border-blue-500">
-                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Smart ECG System</h2>
+        <div class="min-h-screen flex items-center justify-center bg-blue-900">
+            <div class="bg-white p-10 rounded-3xl shadow-2xl w-96">
+                <h2 class="text-2xl font-black text-center mb-6 text-blue-900 uppercase">Smart ECG Login</h2>
                 <div class="space-y-4">
-                    <input type="text" x-model="username" placeholder="Username Admin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    <input type="password" x-model="password" placeholder="Password" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    <button @click="login()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">MASUK SISTEM</button>
+                    <input type="text" x-model="username" placeholder="Admin" class="w-full p-4 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; initChart();} else {alert('Gagal!')}" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700">LOGIN</button>
                 </div>
             </div>
         </div>
@@ -71,91 +92,69 @@
 
     <template x-if="isLoggedIn">
         <div class="flex min-h-screen">
-            <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-2xl">
-                <div class="p-6">
-                    <h1 class="text-xl font-bold text-blue-400 border-b border-slate-700 pb-4 text-center">Admin Panel</h1>
-                </div>
-                <nav class="flex-1 px-4 space-y-2">
-                    <button @click="menu = 'monitoring'; initChart()" :class="menu === 'monitoring' ? 'bg-blue-600' : 'hover:bg-slate-800'" class="flex items-center w-full p-3 rounded-lg transition">📡 Monitoring</button>
-                    <button @click="menu = 'pasien'" :class="menu === 'pasien' ? 'bg-blue-600' : 'hover:bg-slate-800'" class="flex items-center w-full p-3 rounded-lg transition">📋 Data Pasien</button>
-                    <button @click="menu = 'account'" :class="menu === 'account' ? 'bg-blue-600' : 'hover:bg-slate-800'" class="flex items-center w-full p-3 rounded-lg transition">👤 Account Info</button>
-                    <button @click="menu = 'team'" :class="menu === 'team' ? 'bg-blue-600' : 'hover:bg-slate-800'" class="flex items-center w-full p-3 rounded-lg transition">👥 Team Members</button>
+            <aside class="w-72 bg-slate-900 text-white flex flex-col p-6 shadow-2xl">
+                <div class="mb-10 text-center"><h1 class="text-2xl font-black text-blue-500">ADMIN PANEL</h1></div>
+                <nav class="flex-1 space-y-2">
+                    <button @click="menu='monitoring'; initChart()" :class="menu==='monitoring' ? 'bg-blue-600' : ''" class="w-full text-left p-4 rounded-2xl transition">📡 Monitoring</button>
+                    <button @click="menu='pasien'" :class="menu==='pasien' ? 'bg-blue-600' : ''" class="w-full text-left p-4 rounded-2xl transition">📋 Data Pasien</button>
+                    <button @click="menu='account'" :class="menu==='account' ? 'bg-blue-600' : ''" class="w-full text-left p-4 rounded-2xl transition">👤 Account Info</button>
+                    <button @click="menu='team'" :class="menu==='team' ? 'bg-blue-600' : ''" class="w-full text-left p-4 rounded-2xl transition">👥 Team</button>
                 </nav>
-                <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center uppercase tracking-widest">
-                    Model: model_ekg_hybrid.tflite
-                </div>
-                <div class="p-4">
-                    <button @click="isLoggedIn = false" class="w-full py-2 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900 transition text-sm">Logout</button>
-                </div>
+                <button @click="isLoggedIn=false" class="text-red-400 font-bold p-4">LOGOUT</button>
             </aside>
 
-            <main class="flex-1 p-8 bg-gray-50">
-                
-                <div x-show="menu === 'monitoring'" x-transition>
-                    <h2 class="text-2xl font-bold mb-6 text-gray-800">Real-Time ECG Monitoring</h2>
-                    <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                        <div class="h-64 w-full bg-slate-50 rounded-lg mb-6 border border-gray-100 overflow-hidden">
-                            <canvas id="ecgChart"></canvas>
+            <main class="flex-1 p-10 bg-white">
+                <div x-show="menu === 'monitoring'">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Real-Time Monitoring</h2>
+                        <span class="bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">model_ekg_hybrid.tflite</span>
+                    </div>
+
+                    <div class="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-200">
+                        <div class="h-80 bg-white rounded-3xl mb-8 border border-slate-200 relative overflow-hidden">
+                            <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px); background-size: 20px 20px;"></div>
+                            <canvas id="ecgChart" class="relative z-10"></canvas>
                         </div>
-                        <div class="grid grid-cols-2 gap-6">
-                            <div class="p-6 bg-blue-50 rounded-xl border border-blue-100 text-center">
-                                <p class="text-gray-500 uppercase text-xs font-bold tracking-widest">Heart Rate</p>
-                                <p class="text-5xl font-black text-blue-700">72 <span class="text-lg font-normal">BPM</span></p>
+                        
+                        <div class="grid grid-cols-2 gap-8">
+                            <div class="p-8 bg-blue-600 rounded-3xl text-white shadow-xl">
+                                <p class="text-xs uppercase font-black opacity-60 mb-2">Heart Rate</p>
+                                <p class="text-6xl font-black" x-text="bpm + ' BPM'"></p>
                             </div>
-                            <div class="p-6 bg-green-50 rounded-xl border border-green-100 text-center">
-                                <p class="text-gray-500 uppercase text-xs font-bold tracking-widest">AI Diagnosis</p>
-                                <p class="text-3xl font-black text-green-700 uppercase">Normal Sinus</p>
+                            <div class="p-8 bg-white border-4 border-blue-600 rounded-3xl text-center">
+                                <p class="text-xs uppercase font-black text-slate-400 mb-2">AI Diagnosis</p>
+                                <p class="text-4xl font-black text-blue-600" x-text="bpm < 60 ? 'BRADIKARDIA' : (bpm > 100 ? 'TAKIKARDIA' : 'NORMAL')"></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div x-show="menu === 'pasien'" x-transition>
-                    <h2 class="text-2xl font-bold mb-6 text-gray-800 text-center">Database Pasien</h2>
-                    <div class="overflow-x-auto bg-white rounded-xl shadow-lg">
-                        <table class="w-full">
-                            <thead class="bg-gray-100 border-b">
-                                <tr>
-                                    <th class="p-4 text-left">ID</th>
-                                    <th class="p-4 text-left">Nama</th>
-                                    <th class="p-4 text-left">Kondisi Terakhir</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="border-b">
-                                    <td class="p-4 font-mono text-blue-600">P-001</td>
-                                    <td class="p-4">Budi Santoso</td>
-                                    <td class="p-4 font-bold text-green-600">Normal</td>
-                                </tr>
-                                <tr>
-                                    <td class="p-4 font-mono text-blue-600">P-002</td>
-                                    <td class="p-4">Siti Aminah</td>
-                                    <td class="p-4 font-bold text-red-600">Bradycardia</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div x-show="menu === 'team'">
+                    <h2 class="text-3xl font-black text-slate-800 mb-10 text-center uppercase tracking-tighter italic">Collaborators Team</h2>
+                    <div class="grid grid-cols-2 gap-6 max-w-4xl mx-auto text-center">
+                        <div class="bg-white p-8 rounded-3xl border-2 border-blue-100 shadow-lg hover:border-blue-500 transition">
+                            <p class="text-xl font-black">Maqrefa Akbar</p><p class="text-blue-600 font-mono">2307421037</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl border-2 border-blue-100 shadow-lg hover:border-blue-500 transition">
+                            <p class="text-xl font-black">Ghea Geltra Ambarwinoto</p><p class="text-blue-600 font-mono">2307421038</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl border-2 border-blue-100 shadow-lg hover:border-blue-500 transition">
+                            <p class="text-xl font-black">Naora Adhani</p><p class="text-blue-600 font-mono">2307421041</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl border-2 border-blue-100 shadow-lg hover:border-blue-500 transition">
+                            <p class="text-xl font-black">Shanazsiva Nasra</p><p class="text-blue-600 font-mono">2307421044</p>
+                        </div>
                     </div>
                 </div>
 
-                <div x-show="menu === 'account'" x-transition>
-                    <h2 class="text-2xl font-bold mb-6 text-gray-800">Admin Account Info</h2>
-                    <div class="bg-white p-8 rounded-xl shadow-lg border-l-8 border-blue-500 max-w-md">
+                <div x-show="menu === 'account'">
+                    <h2 class="text-3xl font-black text-slate-800 mb-10 uppercase tracking-tighter italic">Account Info</h2>
+                    <div class="bg-slate-50 p-10 rounded-[2.5rem] max-w-lg border border-slate-200">
                         <div class="space-y-4">
-                            <div><p class="text-gray-400 text-xs uppercase font-bold">Role</p><p class="text-lg font-bold">Admin Utama 1</p></div>
-                            <div><p class="text-gray-400 text-xs uppercase font-bold">Instansi</p><p class="text-lg font-bold">Politeknik Negeri Jakarta</p></div>
-                            <div><p class="text-gray-400 text-xs uppercase font-bold">Email</p><p class="text-lg font-bold">admin.ecg@pnj.ac.id</p></div>
-                            <div><p class="text-gray-400 text-xs uppercase font-bold">RS Rujukan</p><p class="text-lg font-bold">Pusat Jantung PNJ</p></div>
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Admin Name</p><p class="text-xl font-bold">Admin Utama 1</p></div>
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Instansi</p><p class="text-xl font-bold">Politeknik Negeri Jakarta</p></div>
+                            <div><p class="text-[10px] font-black text-blue-500 uppercase">Status</p><p class="text-xl font-bold italic">Authorized Access Only</p></div>
                         </div>
-                    </div>
-                </div>
-
-                <div x-show="menu === 'team'" x-transition>
-                    <h2 class="text-2xl font-bold mb-8 text-center text-gray-800 uppercase tracking-widest font-mono">Development Team</h2>
-                    <div class="grid grid-cols-2 gap-4 max-w-4xl mx-auto">
-                        <div class="bg-white p-6 rounded-xl shadow-md border-b-4 border-blue-500 hover:scale-105 transition"><p class="font-bold text-gray-800">Maqrefa Akbar</p><p class="text-blue-500 font-mono text-sm">2307421037</p></div>
-                        <div class="bg-white p-6 rounded-xl shadow-md border-b-4 border-blue-500 hover:scale-105 transition"><p class="font-bold text-gray-800">Ghea Geltra Ambarwinoto</p><p class="text-blue-500 font-mono text-sm">2307421038</p></div>
-                        <div class="bg-white p-6 rounded-xl shadow-md border-b-4 border-blue-500 hover:scale-105 transition"><p class="font-bold text-gray-800">Naora Adhani</p><p class="text-blue-500 font-mono text-sm">2307421041</p></div>
-                        <div class="bg-white p-6 rounded-xl shadow-md border-b-4 border-blue-500 hover:scale-105 transition"><p class="font-bold text-gray-800">Shanazsiva Nasra</p><p class="text-blue-500 font-mono text-sm">2307421044</p></div>
                     </div>
                 </div>
 
