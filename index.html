@@ -3,83 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart ECG Dashboard - Final</title>
-    
+    <title>Smart ECG Dashboard - v3.0 Stable</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/tf-tflite.min.js"></script>
+
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
     <style>
-        :root { --navy: #0f172a; --blue: #2563eb; }
-        body { background-color: #f8fafc; margin: 0; font-family: sans-serif; }
-        .sidebar { width: 280px; background: var(--navy); min-height: 100vh; position: fixed; color: white; padding: 2rem; z-index: 50; }
-        .main-content { margin-left: 280px; padding: 3rem; }
-        .card-ecg { background: white; border-radius: 2.5rem; padding: 2.5rem; box-shadow: 0 20px 50px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
-        .sidebar-btn { width: 100%; text-align: left; padding: 1rem; border-radius: 1rem; border: none; background: transparent; color: #94a3b8; font-weight: bold; cursor: pointer; margin-bottom: 0.5rem; }
-        .sidebar-btn.active { background: var(--blue); color: white; }
+        .bg-navy { background-color: #0f172a; }
+        .card-shadow { box-shadow: 0 20px 50px rgba(0,0,0,0.05); }
     </style>
 </head>
-<body x-data="ecgApp()">
+<body class="bg-slate-50 font-sans" x-data="ecgApp()">
 
     <template x-if="!isLoggedIn">
-        <div class="fixed inset-0 flex items-center justify-center bg-slate-900 z-[100]">
-            <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-t-[12px] border-blue-600">
-                <h2 class="text-3xl font-black text-center text-slate-800 mb-8 uppercase italic">Admin Login</h2>
+        <div class="min-h-screen flex items-center justify-center bg-navy">
+            <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border-t-[10px] border-blue-600 text-center">
+                <h2 class="text-3xl font-black mb-8 italic">ADMIN LOGIN</h2>
                 <div class="space-y-4">
-                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600">
-                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600">
-                    <button @click="login()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700">LOGIN</button>
+                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                    <button @click="login()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">MASUK</button>
                 </div>
             </div>
         </div>
     </template>
 
     <template x-if="isLoggedIn">
-        <div class="flex">
-            <aside class="sidebar shadow-2xl">
-                <h1 class="text-2xl font-black italic text-blue-500 mb-10 tracking-tighter">ADMIN_ECG</h1>
-                <nav class="space-y-2">
-                    <button @click="menu='monitoring'" :class="menu==='monitoring' ? 'active' : ''" class="sidebar-btn">📡 MONITORING</button>
-                    <button @click="menu='team'" :class="menu==='team' ? 'active' : ''" class="sidebar-btn">👥 TEAM</button>
+        <div class="flex min-h-screen">
+            <aside class="w-72 bg-navy text-white p-8 flex flex-col">
+                <h1 class="text-2xl font-black italic text-blue-500 mb-10">SMART_ECG</h1>
+                <nav class="flex-1 space-y-4">
+                    <button @click="menu='monitoring'" :class="menu==='monitoring' ? 'text-blue-400 font-bold' : 'text-slate-500'" class="block w-full text-left uppercase text-xs tracking-widest">📡 Monitoring</button>
                 </nav>
-                <button @click="isLoggedIn=false" class="sidebar-btn text-red-500 mt-20">LOGOUT</button>
+                <button @click="isLoggedIn=false" class="text-red-500 font-bold text-xs">LOGOUT</button>
             </aside>
 
-            <main class="main-content flex-1">
-                <div x-show="menu === 'monitoring'" class="max-w-5xl">
+            <main class="flex-1 p-10 overflow-y-auto">
+                <div x-show="menu === 'monitoring'">
                     <div class="flex justify-between items-center mb-8">
-                        <h2 class="text-4xl font-black text-slate-800 uppercase italic tracking-tighter">Live Monitor</h2>
-                        <span class="bg-blue-100 text-blue-600 px-4 py-1 rounded-full text-xs font-bold uppercase" x-text="aiStatus"></span>
+                        <h2 class="text-3xl font-black italic tracking-tighter">Live Monitor</h2>
+                        <span class="bg-blue-100 text-blue-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest" x-text="aiStatus"></span>
                     </div>
 
-                    <div class="card-ecg">
-                        <div class="h-80 bg-slate-50 rounded-[2rem] mb-10 relative overflow-hidden border shadow-inner">
+                    <div class="bg-white p-8 rounded-[3rem] card-shadow border">
+                        <div class="h-80 bg-slate-50 rounded-[2rem] mb-10 border-2 overflow-hidden relative">
                             <canvas id="ecgChart"></canvas>
                         </div>
                         <div class="grid grid-cols-2 gap-10">
-                            <div class="p-10 bg-blue-600 rounded-[3rem] text-white shadow-2xl shadow-blue-200">
-                                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Realtime BPM (Firebase)</p>
-                                <p class="text-7xl font-black" x-text="bpm + ' BPM'"></p>
+                            <div class="p-8 bg-blue-600 rounded-[2.5rem] text-white">
+                                <p class="text-[10px] font-black opacity-60 uppercase mb-2">BPM (Firebase)</p>
+                                <p class="text-6xl font-black" x-text="bpm + ' BPM'"></p>
                             </div>
-                            <div class="p-10 bg-white border-[6px] border-blue-600 rounded-[3rem] text-center" :class="aiResult === 'TAKIKARDIA' ? 'border-red-500 animate-pulse' : ''">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI TFLite Result</p>
-                                <p class="text-5xl font-black text-blue-600 uppercase" x-text="aiResult"></p>
+                            <div class="p-8 border-[6px] border-blue-600 rounded-[2.5rem] text-center" :class="aiResult === 'TAKIKARDIA' ? 'border-red-500 animate-pulse' : ''">
+                                <p class="text-[10px] font-black text-slate-400 uppercase mb-2">Pure AI Diagnosis</p>
+                                <p class="text-4xl font-black text-blue-600" x-text="aiResult"></p>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div x-show="menu === 'team'" class="text-center">
-                    <h2 class="text-3xl font-black text-slate-800 mb-10 uppercase italic">Project Team</h2>
-                    <div class="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
-                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Maqrefa Akbar</p><p class="text-blue-500 font-mono">2307421037</p></div>
-                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Ghea Geltra Ambarwinoto</p><p class="text-blue-500 font-mono">2307421038</p></div>
-                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Naora Adhani</p><p class="text-blue-500 font-mono">2307421041</p></div>
-                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Shanazsiva Nasra</p><p class="text-blue-500 font-mono">2307421044</p></div>
                     </div>
                 </div>
             </main>
@@ -87,68 +71,108 @@
     </template>
 
     <script>
-        function ecgApp() {
-            return {
-                isLoggedIn: false, menu: 'monitoring', username: '', password: '', bpm: 0, aiResult: '...', aiStatus: 'Loading...', tfliteModel: null,
-                login() {
-                    if(this.username === 'admin1' && this.password === 'pnj2026') {
-                        this.isLoggedIn = true;
-                        this.initFirebase();
-                        this.loadModel();
-                        this.initChart();
-                    } else { alert('Gagal!'); }
-                },
-                initFirebase() {
-                    const config = {
-                        apiKey: "AIzaSyD7cegeyQVu5d0cRkv1dyAjzXWOz8gE-HM",
-                        authDomain: "smart-ekg-tmj-6b.firebaseapp.com",
-                        databaseURL: "https://smart-ekg-tmj-6b-default-rtdb.asia-southeast1.firebasedatabase.app",
-                        projectId: "smart-ekg-tmj-6b",
-                        storageBucket: "smart-ekg-tmj-6b.firebasestorage.app",
-                        messagingSenderId: "257827223094",
-                        appId: "1:257827223094:web:e3d4d834e17a77ffcf4a97"
-                    };
-                    if (!firebase.apps.length) firebase.initializeApp(config);
-                    firebase.database().ref('BPM').on('value', (s) => { this.bpm = parseInt(s.val()) || 0; });
-                },
-                async loadModel() {
-                    try {
-                        tflite.setWasmPath('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/');
-                        this.tfliteModel = await tflite.loadTFLiteModel('model_ekg_hybrid.tflite');
-                        this.aiStatus = 'AI Active'; this.aiResult = 'READY';
-                    } catch (e) { this.aiResult = 'FAIL LOAD'; console.error(e); }
-                },
-                async runInference(buf) {
-                    if (!this.tfliteModel) return;
-                    const input = tf.tensor(buf, [1, 375, 1], 'float32');
+    function ecgApp() {
+        return {
+            isLoggedIn: false, menu: 'monitoring', username: '', password: '',
+            bpm: 0, aiResult: 'WAITING...', aiStatus: 'Loading TFLite...',
+            tfliteModel: null,
+            ecgData: [], // Buffer untuk data asli dari Firebase
+            
+            login() {
+                if(this.username === 'admin1' && this.password === 'pnj2026') {
+                    this.isLoggedIn = true;
+                    this.initFirebase();
+                    this.loadModel();
+                    this.initChart();
+                } else { alert('Akses Ditolak'); }
+            },
+
+            initFirebase() {
+                const config = {
+                    apiKey: "AIzaSyD7cegeyQVu5d0cRkv1dyAjzXWOz8gE-HM",
+                    authDomain: "smart-ekg-tmj-6b.firebaseapp.com",
+                    databaseURL: "https://smart-ekg-tmj-6b-default-rtdb.asia-southeast1.firebasedatabase.app",
+                    projectId: "smart-ekg-tmj-6b",
+                    storageBucket: "smart-ekg-tmj-6b.firebasestorage.app",
+                    messagingSenderId: "257827223094",
+                    appId: "1:257827223094:web:e3d4d834e17a77ffcf4a97"
+                };
+                if (!firebase.apps.length) firebase.initializeApp(config);
+                
+                // Pastikan path 'BPM' sesuai dengan di Firebase Console kamu
+                firebase.database().ref('BPM').on('value', (s) => {
+                    this.bpm = parseInt(s.val()) || 0;
+                });
+
+                // Tarik Sinyal EKG mentah untuk Chart & AI
+                // Ganti 'EKG_RAW' dengan nama node data sinyalmu di Firebase
+                firebase.database().ref('EKG_RAW').on('value', (s) => {
+                    let rawVal = parseFloat(s.val()) || 0;
+                    this.ecgData.push(rawVal);
+                    if(this.ecgData.length > 375) this.ecgData.shift(); // Jaga panjang tetap 375
+                });
+            },
+
+            async loadModel() {
+                try {
+                    // Paksa browser ambil mesin dari CDN Google
+                    tflite.setWasmPath('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/');
+                    this.tfliteModel = await tflite.loadTFLiteModel('model_ekg_hybrid.tflite');
+                    this.aiStatus = 'Model: Active';
+                    this.aiResult = 'READY';
+                } catch (e) {
+                    this.aiStatus = 'Model: FAIL';
+                    console.error(e);
+                }
+            },
+
+            async runInference() {
+                if (!this.tfliteModel || this.ecgData.length < 375) return;
+                try {
+                    // Normalisasi data sesuai training (0-1)
+                    let min = Math.min(...this.ecgData);
+                    let max = Math.max(...this.ecgData);
+                    let normalized = this.ecgData.map(v => (max === min) ? 0 : (v - min) / (max - min));
+
+                    const input = tf.tensor(normalized, [1, 375, 1], 'float32');
                     const output = this.tfliteModel.predict(input);
                     const pred = await output.data();
+                    
                     const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
                     this.aiResult = labels[pred.indexOf(Math.max(...pred))];
+                    
                     input.dispose();
-                },
-                initChart() {
-                    this.$nextTick(() => {
-                        const ctx = document.getElementById('ecgChart').getContext('2d');
-                        let buf = Array.from({length: 375}, () => 0), time = 0;
-                        const chart = new Chart(ctx, {
-                            type: 'line',
-                            data: { labels: Array.from({length: 100},(_,i)=>i), datasets: [{ data: Array.from({length: 100},()=>0), borderColor: '#2563eb', borderWidth: 3, pointRadius: 0, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.05)' }] },
-                            options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { min: -0.5, max: 2.5 }, x: { display: false } }, plugins: { legend: { display: false } } }
-                        });
-                        setInterval(() => {
-                            if(!this.isLoggedIn) return;
-                            time += (this.bpm || 60) / 4500;
-                            let p = time % 1.0;
-                            let val = (0.15 * Math.exp(-Math.pow(p-0.2,2)/0.002)) + (1.8 * Math.exp(-Math.pow(p-0.4,2)/0.0001)) + (0.25 * Math.exp(-Math.pow(p-0.7,2)/0.005));
-                            chart.data.datasets[0].data.shift(); chart.data.datasets[0].data.push(val); chart.update('none');
-                            buf.shift(); buf.push(val);
-                        }, 30);
-                        setInterval(() => { if(this.isLoggedIn && this.tfliteModel) this.runInference(buf); }, 1500);
+                } catch (err) { console.error('Inference Error:', err); }
+            },
+
+            initChart() {
+                this.$nextTick(() => {
+                    const ctx = document.getElementById('ecgChart').getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: Array.from({length: 100}, (_, i) => i),
+                            datasets: [{ data: Array.from({length: 100}, () => 0), borderColor: '#2563eb', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.05)' }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { min: -0.5, max: 2.5 }, x: { display: false } }, plugins: { legend: { display: false } } }
                     });
-                }
+
+                    // Update grafik dari data asli
+                    setInterval(() => {
+                        if(this.ecgData.length > 0) {
+                            let lastVal = this.ecgData[this.ecgData.length - 1];
+                            chart.data.datasets[0].data.shift();
+                            chart.data.datasets[0].data.push(lastVal);
+                            chart.update('none');
+                        }
+                    }, 30);
+
+                    // Inferensi AI setiap 2 detik
+                    setInterval(() => { this.runInference(); }, 2000);
+                });
             }
         }
+    }
     </script>
 </body>
 </html>
