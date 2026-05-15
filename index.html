@@ -3,66 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECG Admin Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Smart ECG Dashboard - Final</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/tf-tflite.min.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --navy: #0f172a; --blue: #2563eb; }
+        body { background-color: #f8fafc; margin: 0; font-family: sans-serif; }
+        .sidebar { width: 280px; background: var(--navy); min-height: 100vh; position: fixed; color: white; padding: 2rem; z-index: 50; }
+        .main-content { margin-left: 280px; padding: 3rem; }
+        .card-ecg { background: white; border-radius: 2.5rem; padding: 2.5rem; box-shadow: 0 20px 50px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .sidebar-btn { width: 100%; text-align: left; padding: 1rem; border-radius: 1rem; border: none; background: transparent; color: #94a3b8; font-weight: bold; cursor: pointer; margin-bottom: 0.5rem; }
+        .sidebar-btn.active { background: var(--blue); color: white; }
+    </style>
 </head>
 <body x-data="ecgApp()">
+
+    <template x-if="!isLoggedIn">
+        <div class="fixed inset-0 flex items-center justify-center bg-slate-900 z-[100]">
+            <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-t-[12px] border-blue-600">
+                <h2 class="text-3xl font-black text-center text-slate-800 mb-8 uppercase italic">Admin Login</h2>
+                <div class="space-y-4">
+                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600">
+                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600">
+                    <button @click="login()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700">LOGIN</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <template x-if="isLoggedIn">
         <div class="flex">
-            <aside class="sidebar">
-                <h1 class="text-2xl font-black text-blue-500 italic mb-10">ADMIN_ECG</h1>
-                <nav class="space-y-4">
-                    <button @click="menu='monitoring'" class="block w-full text-left font-bold text-slate-400 hover:text-white transition">📡 MONITORING</button>
-                    <button @click="isLoggedIn=false" class="block w-full text-left font-bold text-red-500 mt-20">LOGOUT</button>
+            <aside class="sidebar shadow-2xl">
+                <h1 class="text-2xl font-black italic text-blue-500 mb-10 tracking-tighter">ADMIN_ECG</h1>
+                <nav class="space-y-2">
+                    <button @click="menu='monitoring'" :class="menu==='monitoring' ? 'active' : ''" class="sidebar-btn">📡 MONITORING</button>
+                    <button @click="menu='team'" :class="menu==='team' ? 'active' : ''" class="sidebar-btn">👥 TEAM</button>
                 </nav>
+                <button @click="isLoggedIn=false" class="sidebar-btn text-red-500 mt-20">LOGOUT</button>
             </aside>
 
-            <main class="main-content">
-                <div x-show="menu === 'monitoring'">
+            <main class="main-content flex-1">
+                <div x-show="menu === 'monitoring'" class="max-w-5xl">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-4xl font-black text-slate-800 uppercase italic tracking-tighter">Live Monitor</h2>
+                        <span class="bg-blue-100 text-blue-600 px-4 py-1 rounded-full text-xs font-bold uppercase" x-text="aiStatus"></span>
+                    </div>
+
                     <div class="card-ecg">
-                        <div class="h-64 mb-10 border rounded-2xl overflow-hidden bg-slate-50">
+                        <div class="h-80 bg-slate-50 rounded-[2rem] mb-10 relative overflow-hidden border shadow-inner">
                             <canvas id="ecgChart"></canvas>
                         </div>
-                        <div class="grid grid-cols-2 gap-10 text-center">
-                            <div class="p-8 bg-blue-600 rounded-[2rem] text-white">
-                                <p class="text-xs font-bold uppercase opacity-60">Firebase BPM</p>
-                                <p class="text-6xl font-black" x-text="bpm"></p>
+                        <div class="grid grid-cols-2 gap-10">
+                            <div class="p-10 bg-blue-600 rounded-[3rem] text-white shadow-2xl shadow-blue-200">
+                                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Realtime BPM (Firebase)</p>
+                                <p class="text-7xl font-black" x-text="bpm + ' BPM'"></p>
                             </div>
-                            <div class="p-8 border-4 border-blue-600 rounded-[2rem]">
-                                <p class="text-xs font-bold text-slate-400 uppercase">AI Diagnosis</p>
-                                <p class="text-4xl font-black text-blue-600 uppercase" x-text="aiResult"></p>
+                            <div class="p-10 bg-white border-[6px] border-blue-600 rounded-[3rem] text-center" :class="aiResult === 'TAKIKARDIA' ? 'border-red-500 animate-pulse' : ''">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI TFLite Result</p>
+                                <p class="text-5xl font-black text-blue-600 uppercase" x-text="aiResult"></p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div x-show="menu === 'team'" class="text-center">
+                    <h2 class="text-3xl font-black text-slate-800 mb-10 uppercase italic">Project Team</h2>
+                    <div class="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
+                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Maqrefa Akbar</p><p class="text-blue-500 font-mono">2307421037</p></div>
+                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Ghea Geltra Ambarwinoto</p><p class="text-blue-500 font-mono">2307421038</p></div>
+                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Naora Adhani</p><p class="text-blue-500 font-mono">2307421041</p></div>
+                        <div class="bg-white p-8 rounded-3xl border shadow-lg"><p class="text-xl font-black">Shanazsiva Nasra</p><p class="text-blue-500 font-mono">2307421044</p></div>
                     </div>
                 </div>
             </main>
         </div>
     </template>
 
-    <template x-if="!isLoggedIn">
-        <div class="min-h-screen flex items-center justify-center bg-slate-900">
-            <button @click="login()" class="bg-blue-600 text-white px-10 py-4 rounded-2xl font-bold">LOGIN ADMIN</button>
-        </div>
-    </template>
-
     <script>
         function ecgApp() {
             return {
-                isLoggedIn: false, menu: 'monitoring', bpm: 0, aiResult: '...', tfliteModel: null,
+                isLoggedIn: false, menu: 'monitoring', username: '', password: '', bpm: 0, aiResult: '...', aiStatus: 'Loading...', tfliteModel: null,
                 login() {
-                    this.isLoggedIn = true;
-                    this.initFirebase();
-                    this.loadModel();
-                    this.initChart();
+                    if(this.username === 'admin1' && this.password === 'pnj2026') {
+                        this.isLoggedIn = true;
+                        this.initFirebase();
+                        this.loadModel();
+                        this.initChart();
+                    } else { alert('Gagal!'); }
                 },
                 initFirebase() {
                     const config = {
@@ -75,14 +109,14 @@
                         appId: "1:257827223094:web:e3d4d834e17a77ffcf4a97"
                     };
                     if (!firebase.apps.length) firebase.initializeApp(config);
-                    firebase.database().ref('BPM').on('value', (s) => { this.bpm = s.val(); });
+                    firebase.database().ref('BPM').on('value', (s) => { this.bpm = parseInt(s.val()) || 0; });
                 },
                 async loadModel() {
                     try {
                         tflite.setWasmPath('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/');
                         this.tfliteModel = await tflite.loadTFLiteModel('model_ekg_hybrid.tflite');
-                        console.log('Model Loaded');
-                    } catch (e) { this.aiResult = 'FAIL LOAD'; }
+                        this.aiStatus = 'AI Active'; this.aiResult = 'READY';
+                    } catch (e) { this.aiResult = 'FAIL LOAD'; console.error(e); }
                 },
                 async runInference(buf) {
                     if (!this.tfliteModel) return;
@@ -96,18 +130,19 @@
                 initChart() {
                     this.$nextTick(() => {
                         const ctx = document.getElementById('ecgChart').getContext('2d');
-                        let buf = Array.from({length:375}, () => 0), time = 0;
+                        let buf = Array.from({length: 375}, () => 0), time = 0;
                         const chart = new Chart(ctx, {
-                            type: 'line', data: { labels: Array.from({length:100},(_,i)=>i), datasets: [{ data: Array.from({length:100},()=>0), borderColor: '#2563eb', borderWidth: 2, pointRadius: 0 }] },
-                            options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { min: -0.5, max: 2.5 }, x: { display: false } } }
+                            type: 'line',
+                            data: { labels: Array.from({length: 100},(_,i)=>i), datasets: [{ data: Array.from({length: 100},()=>0), borderColor: '#2563eb', borderWidth: 3, pointRadius: 0, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.05)' }] },
+                            options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { min: -0.5, max: 2.5 }, x: { display: false } }, plugins: { legend: { display: false } } }
                         });
                         setInterval(() => {
                             if(!this.isLoggedIn) return;
                             time += (this.bpm || 60) / 4500;
                             let p = time % 1.0;
-                            let v = (0.15 * Math.exp(-Math.pow(p-0.2,2)/0.002)) + (1.8 * Math.exp(-Math.pow(p-0.4,2)/0.0001)) + (0.25 * Math.exp(-Math.pow(p-0.7,2)/0.005));
-                            chart.data.datasets[0].data.shift(); chart.data.datasets[0].data.push(v); chart.update('none');
-                            buf.shift(); buf.push(v);
+                            let val = (0.15 * Math.exp(-Math.pow(p-0.2,2)/0.002)) + (1.8 * Math.exp(-Math.pow(p-0.4,2)/0.0001)) + (0.25 * Math.exp(-Math.pow(p-0.7,2)/0.005));
+                            chart.data.datasets[0].data.shift(); chart.data.datasets[0].data.push(val); chart.update('none');
+                            buf.shift(); buf.push(val);
                         }, 30);
                         setInterval(() => { if(this.isLoggedIn && this.tfliteModel) this.runInference(buf); }, 1500);
                     });
@@ -116,4 +151,4 @@
         }
     </script>
 </body>
-</html> 
+</html>
