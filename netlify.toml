@@ -2,8 +2,6 @@
   for = "/*.wasm"
   [headers.values]
     Content-Type = "application/wasm"
-    Cross-Origin-Embedder-Policy = "require-corp"
-    Cross-Origin-Opener-Policy = "same-origin"
 
 [[headers]]
   for = "/*.tflite"
@@ -13,5 +11,5 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Cross-Origin-Embedder-Policy = "require-corp"
-    Cross-Origin-Opener-Policy = "same-origin"
+    # Hapus COEP/COOP dari global agar library CDN (Tailwind/Firebase) tidak terblokir
+    Access-Control-Allow-Origin = "*"
