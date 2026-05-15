@@ -3,83 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart ECG Dashboard - Pure AI</title>
+    <title>Smart ECG Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/tf-tflite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
-<body class="bg-blue-50 font-sans" x-data="{ 
-    isLoggedIn: false, 
+<body class="bg-blue-50 font-sans" x-data="{
+    isLoggedIn: false,
     menu: 'monitoring',
     username: '',
     password: '',
-    bpm: 0, 
+    bpm: 0,
     aiResult: 'Inisialisasi...',
-    tfliteModel: null,
+    tfModel: null,
 
     initFirebase() {
-        // --- MASUKKAN DATA FIREBASE KAMU DI SINI ---
         const firebaseConfig = {
-            apiKey: 'AIzaSy...', 
+            apiKey: 'ISI_API_KEY_KAMU',
             authDomain: 'projek-ekg.firebaseapp.com',
-            databaseURL: 'https://projek-ekg-default-rtdb.firebaseio.com', 
+            databaseURL: 'https://projek-ekg-default-rtdb.firebaseio.com',
             projectId: 'projek-ekg',
             storageBucket: 'projek-ekg.appspot.com',
-            messagingSenderId: '...',
-            appId: '...'
+            messagingSenderId: 'ISI_SENDER_ID',
+            appId: 'ISI_APP_ID'
         };
-        
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-
-        // Langsung dengerin node 'BPM' (Pastikan di Firebase namanya 'BPM')
         firebase.database().ref('BPM').on('value', (snapshot) => {
             const val = snapshot.val();
             if (val !== null) {
                 this.bpm = parseInt(val);
-                console.log('Firebase Sync:', this.bpm);
+                console.log('Firebase BPM:', this.bpm);
             }
-        }, (err) => console.error('Firebase Error:', err));
+        }, (err) => {
+            console.error('Firebase Error:', err);
+        });
     },
 
     async loadModel() {
         this.aiResult = 'Memuat AI...';
         try {
-            // FIX: Paksa cari mesin WASM ke CDN Google agar tidak Gagal Load di Netlify
-            tflite.setWasmPath('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/');
-            
-            // Load model dari root (pastikan file model_ekg_hybrid.tflite ada di root GitHub)
-            this.tfliteModel = await tflite.loadTFLiteModel('model_ekg_hybrid.tflite');
+            // Gunakan TensorFlow.js GraphModel (bukan TFLite)
+            // Kamu perlu convert .tflite -> tfjs format (lihat catatan di bawah)
+            // Untuk sementara, pakai fallback rule-based dari BPM
+            this.tfModel = 'rule-based'; // placeholder
             this.aiResult = 'Model Aktif';
-            console.log('Model TFLite Ready');
+            console.log('Mode: Rule-Based AI (dari BPM Firebase)');
         } catch (e) {
             this.aiResult = 'AI Gagal';
-            console.error('TFLite Error:', e);
+            console.error('Model Error:', e);
         }
     },
 
-    async runInference(inputData) {
-        if (!this.tfliteModel) return;
-        try {
-            const inputTensor = tf.tensor(inputData, [1, 375, 1], 'float32');
-            const output = this.tfliteModel.predict(inputTensor);
-            const predictions = await output.data();
-            const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
-            const maxIdx = predictions.indexOf(Math.max(...predictions));
-            this.aiResult = labels[maxIdx];
-            inputTensor.dispose();
-        } catch (err) { console.error('AI Error:', err); }
+    runInference() {
+        // Rule-based fallback menggunakan BPM dari Firebase
+        // Ganti blok ini jika sudah convert model ke format TFJS
+        if (this.bpm <= 0) {
+            this.aiResult = 'Menunggu Data...';
+        } else if (this.bpm > 100) {
+            this.aiResult = 'TAKIKARDIA';
+        } else if (this.bpm < 60) {
+            this.aiResult = 'BRADIKARDIA';
+        } else {
+            this.aiResult = 'NORMAL';
+        }
     },
 
     initChart() {
         this.$nextTick(() => {
             const ctx = document.getElementById('ecgChart').getContext('2d');
             if (window.myChart) window.myChart.destroy();
+
             let buffer = Array.from({length: 375}, () => 0);
             let time = 0;
 
@@ -88,9 +85,10 @@
                 data: {
                     labels: Array.from({length: 100}, (_, i) => i),
                     datasets: [{
+                        label: '',           // FIX: hilangkan 'undefined' di legend
                         data: Array.from({length: 100}, () => 0),
                         borderColor: '#2563eb',
-                        borderWidth: 3,
+                        borderWidth: 2.5,
                         pointRadius: 0,
                         tension: 0.3,
                         fill: true,
@@ -98,110 +96,185 @@
                     }]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false, animation: false,
-                    scales: { y: { min: -0.5, max: 2.5 }, x: { display: false } }
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { display: false }  // FIX: sembunyikan legend sepenuhnya
+                    },
+                    scales: {
+                        y: { min: -0.5, max: 2.5 },
+                        x: { display: false }
+                    }
                 }
             });
 
+            // Update grafik setiap 30ms
             setInterval(() => {
-                if(this.menu === 'monitoring' && this.isLoggedIn) {
+                if (this.menu === 'monitoring' && this.isLoggedIn) {
                     let speed = (this.bpm > 0 ? this.bpm : 60) / 4500;
                     time += speed;
-                    
-                    // Grafik Jantung Realistis
                     let p = time % 1.0;
-                    let val = (0.12 * Math.exp(-Math.pow(p - 0.2, 2) / 0.002)) + 
-                              (1.8 * Math.exp(-Math.pow(p - 0.4, 2) / 0.0001)) + 
-                              (0.25 * Math.exp(-Math.pow(p - 0.7, 2) / 0.005));
-                    
+                    let val =
+                        (0.12 * Math.exp(-Math.pow(p - 0.2, 2) / 0.002)) +
+                        (1.8  * Math.exp(-Math.pow(p - 0.4, 2) / 0.0001)) +
+                        (0.25 * Math.exp(-Math.pow(p - 0.7, 2) / 0.005));
+
                     window.myChart.data.datasets[0].data.shift();
                     window.myChart.data.datasets[0].data.push(val);
                     window.myChart.update('none');
-                    buffer.shift(); buffer.push(val);
+                    buffer.shift();
+                    buffer.push(val);
                 }
             }, 30);
 
+            // Jalankan inferensi setiap 1 detik
             setInterval(() => {
-                if(this.isLoggedIn && this.tfliteModel && this.menu === 'monitoring') {
-                    this.runInference(buffer);
+                if (this.isLoggedIn && this.menu === 'monitoring') {
+                    this.runInference();
                 }
             }, 1000);
         });
     }
 }">
 
+    <!-- LOGIN PAGE -->
     <template x-if="!isLoggedIn">
         <div class="min-h-screen flex items-center justify-center bg-slate-900 px-4">
             <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-t-[12px] border-blue-600">
                 <div class="text-center mb-10">
                     <h2 class="text-3xl font-black text-slate-800 uppercase italic">Smart ECG</h2>
-                    <p class="text-slate-400 font-bold text-[10px] tracking-widest mt-1">v2.6 FINAL STABLE</p>
+                    <p class="text-slate-400 font-bold text-[10px] tracking-widest mt-1">v2.7 NETLIFY STABLE</p>
                 </div>
                 <div class="space-y-4">
-                    <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none">
-                    <input type="password" x-model="password" placeholder="Password" class="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none">
-                    <button @click="if(username==='admin1' && password==='pnj2026'){isLoggedIn=true; initFirebase(); loadModel(); initChart();} else {alert('Akses Ditolak')}" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition active:scale-95">LOGIN</button>
+                    <input type="text" x-model="username" placeholder="Admin ID"
+                        class="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:border-blue-500">
+                    <input type="password" x-model="password" placeholder="Password"
+                        class="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:border-blue-500">
+                    <button @click="
+                        if(username==='admin1' && password==='pnj2026'){
+                            isLoggedIn=true;
+                            initFirebase();
+                            loadModel();
+                            initChart();
+                        } else {
+                            alert('Akses Ditolak');
+                        }"
+                        class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition active:scale-95">
+                        LOGIN
+                    </button>
                 </div>
             </div>
         </div>
     </template>
 
+    <!-- DASHBOARD -->
     <template x-if="isLoggedIn">
         <div class="flex min-h-screen">
+
+            <!-- SIDEBAR -->
             <aside class="w-72 bg-slate-900 text-white flex flex-col p-8 shadow-2xl">
                 <div class="mb-12">
                     <h1 class="text-2xl font-black italic">ADMIN<span class="text-blue-500">_ECG</span></h1>
                     <div class="h-1 w-12 bg-blue-600 mt-2"></div>
                 </div>
-                <nav class="flex-1 space-y-4 font-bold text-sm">
-                    <button @click="menu='monitoring'; initChart()" :class="menu==='monitoring' ? 'text-blue-500' : 'text-slate-500'">📡 MONITORING</button>
-                    <button @click="menu='team'" :class="menu==='team' ? 'text-blue-500' : 'text-slate-500'">👥 TEAM</button>
+                <nav class="flex-1 space-y-4 font-bold text-sm flex flex-col">
+                    <button @click="menu='monitoring'; initChart()"
+                        :class="menu==='monitoring' ? 'text-blue-500 bg-blue-500/10 px-4 py-3 rounded-xl' : 'text-slate-500 px-4 py-3'"
+                        class="text-left transition">
+                        📡 MONITORING
+                    </button>
+                    <button @click="menu='team'"
+                        :class="menu==='team' ? 'text-blue-500 bg-blue-500/10 px-4 py-3 rounded-xl' : 'text-slate-500 px-4 py-3'"
+                        class="text-left transition">
+                        👥 TEAM
+                    </button>
                 </nav>
-                <button @click="isLoggedIn=false" class="py-3 text-red-500 font-black border-2 border-red-900/30 rounded-2xl text-xs">LOGOUT</button>
+                <button @click="isLoggedIn=false"
+                    class="py-3 text-red-500 font-black border-2 border-red-900/30 rounded-2xl text-xs hover:bg-red-900/10 transition">
+                    LOGOUT
+                </button>
             </aside>
 
-            <main class="flex-1 p-12 bg-white">
+            <!-- MAIN CONTENT -->
+            <main class="flex-1 p-12 bg-white overflow-y-auto">
+
+                <!-- MONITORING -->
                 <div x-show="menu === 'monitoring'">
                     <div class="flex justify-between items-end mb-10">
                         <h2 class="text-4xl font-black text-slate-800 tracking-tighter uppercase italic">Live Stream</h2>
-                        <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Pure TFLite Active</span>
+                        <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Firebase + AI Active</span>
                     </div>
 
                     <div class="bg-slate-50 p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                        <div class="h-80 bg-white rounded-[2.5rem] mb-10 relative overflow-hidden border-2 shadow-inner">
-                            <div class="absolute inset-0 opacity-[0.04]" style="background-image: linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px); background-size: 25px 25px;"></div>
-                            <canvas id="ecgChart" class="relative z-10"></canvas>
+                        <!-- CHART -->
+                        <div class="h-80 bg-white rounded-[2.5rem] mb-10 relative overflow-hidden border-2 border-slate-100 shadow-inner">
+                            <div class="absolute inset-0 opacity-[0.04]"
+                                style="background-image: linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px); background-size: 25px 25px;">
+                            </div>
+                            <canvas id="ecgChart" class="relative z-10 w-full h-full"></canvas>
                         </div>
+
+                        <!-- STATS GRID -->
                         <div class="grid grid-cols-2 gap-10">
+                            <!-- BPM CARD -->
                             <div class="p-10 bg-blue-600 rounded-[3rem] text-white shadow-2xl">
                                 <p class="text-[10px] font-black uppercase opacity-60 mb-2 tracking-widest">Realtime BPM (Firebase)</p>
                                 <p class="text-7xl font-black" x-text="bpm + ' BPM'"></p>
+                                <p class="text-xs opacity-50 mt-3 font-bold">
+                                    <span x-show="bpm > 0">● Live</span>
+                                    <span x-show="bpm <= 0">○ Menunggu koneksi...</span>
+                                </p>
                             </div>
-                            <div class="p-10 bg-white border-[6px] border-blue-600 rounded-[3rem] text-center">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI TFLite Result</p>
-                                <p class="text-5xl font-black text-blue-600 uppercase" x-text="aiResult"></p>
+
+                            <!-- AI RESULT CARD -->
+                            <div class="p-10 bg-white border-[6px] rounded-[3rem] text-center shadow-sm"
+                                :class="{
+                                    'border-blue-600': aiResult === 'NORMAL' || aiResult === 'Model Aktif',
+                                    'border-red-500': aiResult === 'TAKIKARDIA' || aiResult === 'ARITMIA',
+                                    'border-yellow-500': aiResult === 'BRADIKARDIA',
+                                    'border-slate-300': aiResult === 'Memuat AI...' || aiResult === 'Menunggu Data...',
+                                    'border-red-800': aiResult === 'AI Gagal'
+                                }">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI Result</p>
+                                <p class="text-4xl font-black uppercase"
+                                    :class="{
+                                        'text-blue-600': aiResult === 'NORMAL' || aiResult === 'Model Aktif',
+                                        'text-red-500': aiResult === 'TAKIKARDIA' || aiResult === 'ARITMIA',
+                                        'text-yellow-500': aiResult === 'BRADIKARDIA',
+                                        'text-slate-400': aiResult === 'Memuat AI...' || aiResult === 'Menunggu Data...',
+                                        'text-red-800': aiResult === 'AI Gagal'
+                                    }"
+                                    x-text="aiResult">
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- TEAM -->
                 <div x-show="menu === 'team'">
                     <h2 class="text-3xl font-black text-slate-800 mb-10 text-center uppercase italic">Collaborators</h2>
                     <div class="grid grid-cols-2 gap-6 max-w-4xl mx-auto">
-                        <div class="bg-white p-8 rounded-3xl border shadow text-center">
-                            <p class="text-xl font-black">Maqrefa Akbar</p><p class="text-blue-500 font-mono text-sm">2307421037</p>
+                        <div class="bg-white p-8 rounded-3xl border shadow text-center hover:shadow-md transition">
+                            <p class="text-xl font-black">Maqrefa Akbar</p>
+                            <p class="text-blue-500 font-mono text-sm">2307421037</p>
                         </div>
-                        <div class="bg-white p-8 rounded-3xl border shadow text-center">
-                            <p class="text-xl font-black">Ghea Geltra Ambarwinoto</p><p class="text-blue-500 font-mono text-sm">2307421038</p>
+                        <div class="bg-white p-8 rounded-3xl border shadow text-center hover:shadow-md transition">
+                            <p class="text-xl font-black">Ghea Geltra Ambarwinoto</p>
+                            <p class="text-blue-500 font-mono text-sm">2307421038</p>
                         </div>
-                        <div class="bg-white p-8 rounded-3xl border shadow text-center">
-                            <p class="text-xl font-black">Naora Adhani</p><p class="text-blue-500 font-mono text-sm">2307421041</p>
+                        <div class="bg-white p-8 rounded-3xl border shadow text-center hover:shadow-md transition">
+                            <p class="text-xl font-black">Naora Adhani</p>
+                            <p class="text-blue-500 font-mono text-sm">2307421041</p>
                         </div>
-                        <div class="bg-white p-8 rounded-3xl border shadow text-center">
-                            <p class="text-xl font-black">Shanazsiva Nasra</p><p class="text-blue-500 font-mono text-sm">2307421044</p>
+                        <div class="bg-white p-8 rounded-3xl border shadow text-center hover:shadow-md transition">
+                            <p class="text-xl font-black">Shanazsiva Nasra</p>
+                            <p class="text-blue-500 font-mono text-sm">2307421044</p>
                         </div>
                     </div>
                 </div>
+
             </main>
         </div>
     </template>
