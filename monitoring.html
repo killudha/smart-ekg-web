@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring - Smart ECG</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --navy: #020617; --blue-accent: #3b82f6; }
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+        .sidebar { background-color: var(--navy); width: 280px; min-height: 100vh; position: fixed; }
+        .main-content { margin-left: 280px; padding: 2rem; }
+        .card { background: white; border-radius: 30px; padding: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        canvas { width: 100% !important; height: 350px !important; }
+        .nav-link { display: block; width: 100%; padding: 18px; border-radius: 20px; color: white; background: transparent; margin-bottom: 10px; font-weight: bold; text-decoration: none; }
+        .nav-link.active { background: var(--blue-accent); }
+        .nav-link:hover:not(.active) { background: rgba(255,255,255,0.1); }
+        .danger { border: 5px solid red; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+    </style>
+</head>
+<body x-data="ecgEngine()">
+
+    <aside class="sidebar p-6 text-white flex flex-col">
+        <h1 class="text-3xl font-black mb-10 italic uppercase">ADMIN<span class="text-blue-500">_ECG</span></h1>
+        
+        <nav class="flex-1">
+            <a href="monitoring.html" class="nav-link active">📡 PENGEMBANGAN LIVE</a>
+            <a href="pasien.html" class="nav-link">📂 DATA IMPLEMENTASI PASIEN</a>
+            <a href="team.html" class="nav-link">👥 TIM PROJEK</a>
+            <a href="profile.html" class="nav-link">👤 PROFIL ADMIN</a>
+        </nav>
+
+        <a href="login.html" class="w-full py-4 text-center bg-red-500/10 text-red-500 rounded-2xl font-black hover:bg-red-500 hover:text-white transition uppercase text-[10px] tracking-widest mt-auto block text-decoration-none">
+            LOGOUT
+        </a>
+    </aside>
+
+    <main class="main-content">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h1 class="text-5xl font-black uppercase italic tracking-tighter text-slate-900">Pengembangan Sistem</h1>
+                <div class="mt-4 flex gap-3">
+                    <span class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-bold shadow-sm" x-text="modelStatus"></span>
+                    <span class="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-bold shadow-sm">
+                        Firebase: <span x-text="firebaseStatus"></span>
+                    </span>
+                </div>
+            </div>
+            <div class="bg-white rounded-full px-6 py-4 shadow font-bold text-slate-500 flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full" :class="bpm > 0 ? 'bg-green-500 animate-ping' : 'bg-slate-300'"></div>
+                BPM: <span x-text="bpm" class="text-slate-800"></span>
+            </div>
+        </div>
+
+        <div class="card mb-10">
+            <div class="bg-slate-950 rounded-3xl p-6 relative overflow-hidden">
+                <div class="absolute inset-0 opacity-20" style="background-image: linear-gradient(#00ff99 1px, transparent 1px), linear-gradient(90deg, #00ff99 1px, transparent 1px); background-size: 40px 40px;"></div>
+                <canvas id="ecgChart" class="relative z-10"></canvas>
+            </div>
+            <div class="mt-4 text-right text-sm font-bold text-slate-400">
+                Nilai Sensor Real-time: <span x-text="lastEcgValue" class="text-slate-800 ml-1"></span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8">
+            <div class="card bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-xl relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 text-white opacity-10 text-[15rem] leading-none">❤</div>
+                <p class="text-xl mb-4 font-bold tracking-widest opacity-80">HEART RATE</p>
+                <h1 class="text-8xl font-black flex items-baseline gap-4 relative z-10">
+                    <span x-text="bpm"></span><span class="text-3xl opacity-80 font-normal">BPM</span>
+                </h1>
+            </div>
+
+            <div class="card transition-all duration-300 shadow-xl"
+                 :class="{
+                    'danger bg-red-50': aiLabel === 'ARITMIA' || aiLabel === 'TAKIKARDIA',
+                    'border-4 border-yellow-400 bg-yellow-50': aiLabel === 'BRADIKARDIA',
+                    'border-4 border-blue-500': aiLabel === 'NORMAL'
+                 }">
+                <div class="flex justify-between mb-6 items-center">
+                    <h1 class="font-black text-slate-400 tracking-[0.5em] uppercase text-xs">Implementasi Klasifikasi CNN</h1>
+                    <div class="bg-slate-900 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg">
+                        <span x-text="confidence"></span>% ACCURACY
+                    </div>
+                </div>
+                <div class="text-center">
+                    <h1 class="text-5xl font-black mb-6 italic tracking-tighter"
+                        :class="{
+                            'text-red-600': aiLabel === 'ARITMIA' || aiLabel === 'TAKIKARDIA',
+                            'text-yellow-600': aiLabel === 'BRADIKARDIA',
+                            'text-blue-600': aiLabel === 'NORMAL',
+                            'text-slate-400': aiLabel.includes('...')
+                        }" x-text="aiLabel">
+                    </h1>
+                    <div class="inline-block bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">
+                        Buffer: <span x-text="dataBuffer.length"></span>/375 samples
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let globalChart = null;
+
+        function ecgEngine() {
+            return {
+                bpm: 0,
+                aiLabel: 'MEMUAT SISTEM...',
+                confidence: 0,
+                modelStatus: 'INIT...',
+                firebaseStatus: 'OFFLINE',
+                lastEcgValue: 0,
+                tfModel: null,
+                dataBuffer: [],
+                incomingQueue: [],
+
+                init() {
+                    this.initChart();
+                    this.loadModel();
+                    this.initFirebase();
+                },
+
+                initFirebase() {
+                    const config = {
+                        apiKey: "AIzaSyD7cegeyQVu5d0cRkv1dyAjzXWOz8gE-HM",
+                        authDomain: "smart-ekg-tmj-6b.firebaseapp.com",
+                        databaseURL: "https://smart-ekg-tmj-6b-default-rtdb.asia-southeast1.firebasedatabase.app",
+                        projectId: "smart-ekg-tmj-6b",
+                        storageBucket: "smart-ekg-tmj-6b.firebasestorage.app",
+                        messagingSenderId: "257827223094",
+                        appId: "1:257827223094:web:e3d4d834e17a77ffcf4a97"
+                    };
+
+                    try {
+                        if (!firebase.apps.length) firebase.initializeApp(config);
+                        this.firebaseStatus = 'CONNECTING...';
+                        const dbRef = firebase.database().ref('monitoring/live_data');
+
+                        dbRef.on('value', (snapshot) => {
+                            this.firebaseStatus = 'LIVE';
+                            const data = snapshot.val();
+                            if (!data) return;
+
+                            if (data.bpm !== undefined) this.bpm = parseInt(data.bpm);
+
+                            if (data.graph_value) {
+                                let raw = data.graph_value;
+                                let newPoints = [];
+
+                                if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e) {}
+                                if (typeof raw === 'object' && !Array.isArray(raw)) {
+                                    newPoints = Object.keys(raw).sort((a,b) => parseInt(a)-parseInt(b)).map(k => parseFloat(raw[k]));
+                                } else if (Array.isArray(raw)) {
+                                    newPoints = raw.map(v => parseFloat(v));
+                                }
+
+                                newPoints = newPoints.filter(v => !isNaN(v));
+                                if (newPoints.length > 0) this.incomingQueue.push(...newPoints);
+                            }
+                        });
+                    } catch(e) {
+                        this.firebaseStatus = 'FAIL';
+                    }
+                },
+
+                async loadModel() {
+                    try {
+                        this.tfModel = await tf.loadLayersModel('./tfjs_model/model.json');
+                        this.modelStatus = 'MODEL ACTIVE';
+                        this.aiLabel = 'MENGUMPULKAN DATA...';
+                    } catch(e) {
+                        this.modelStatus = 'ERROR LOAD MODEL';
+                        this.aiLabel = 'BACA POP-UP ERROR';
+                        alert('AI Gagal Dimuat!\n\n' + e.message);
+                    }
+                },
+
+                async runInference() {
+                    if (!this.tfModel) return;
+                    if (this.dataBuffer.length < 375) {
+                        this.aiLabel = 'MENGUMPULKAN DATA...';
+                        return;
+                    }
+
+                    try {
+                        let min = Math.min(...this.dataBuffer);
+                        let max = Math.max(...this.dataBuffer);
+                        let normalized = this.dataBuffer.map(v => (max === min) ? 0 : (v - min) / (max - min));
+
+                        const input = tf.tensor(normalized, [1, 375, 1], 'float32');
+                        const output = this.tfModel.predict(input);
+                        const preds = await output.data();
+
+                        const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA', 'UNKNOWN'];
+                        let maxVal = Math.max(...preds);
+                        let maxIdx = preds.indexOf(maxVal);
+
+                        this.aiLabel = labels[maxIdx];
+                        this.confidence = Math.round(maxVal * 100);
+
+                        input.dispose();
+                        output.dispose();
+                    } catch (e) {
+                        this.aiLabel = 'ERROR INFERENSI';
+                    }
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('ecgChart').getContext('2d');
+                    if (globalChart) globalChart.destroy();
+
+                    globalChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: Array.from({length: 150}, (_,i) => i),
+                            datasets: [{
+                                data: Array.from({length: 150}, () => 715),
+                                borderColor: '#00ff99',
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                tension: 0.2
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false, animation: false,
+                            plugins: { legend: { display: false } },
+                            scales: { x: { display: false }, y: { min: 400, max: 1100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+                        }
+                    });
+
+                    setInterval(() => {
+                        if (this.incomingQueue.length > 0 && globalChart) {
+                            let val = this.incomingQueue.shift();
+                            this.lastEcgValue = val.toFixed(2);
+
+                            globalChart.data.datasets[0].data.shift();
+                            globalChart.data.datasets[0].data.push(val);
+                            globalChart.update('none');
+
+                            this.dataBuffer.push(val);
+                            if (this.dataBuffer.length > 375) this.dataBuffer.shift();
+                        }
+                    }, 8);
+
+                    setInterval(() => {
+                        this.runInference();
+                    }, 1500);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

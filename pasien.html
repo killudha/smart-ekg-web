@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Pasien - Smart ECG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --navy: #020617; --blue-accent: #3b82f6; }
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+        .sidebar { background-color: var(--navy); width: 280px; min-height: 100vh; position: fixed; }
+        .main-content { margin-left: 280px; padding: 2rem; }
+        .card { background: white; border-radius: 30px; padding: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .nav-link { display: block; width: 100%; padding: 18px; border-radius: 20px; color: white; background: transparent; margin-bottom: 10px; font-weight: bold; text-decoration: none; }
+        .nav-link.active { background: var(--blue-accent); }
+        .nav-link:hover:not(.active) { background: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar p-6 text-white flex flex-col">
+        <h1 class="text-3xl font-black mb-10 italic uppercase">ADMIN<span class="text-blue-500">_ECG</span></h1>
+        <nav class="flex-1">
+            <a href="monitoring.html" class="nav-link">📡 PENGEMBANGAN LIVE</a>
+            <a href="pasien.html" class="nav-link active">📂 DATA IMPLEMENTASI PASIEN</a>
+            <a href="team.html" class="nav-link">👥 TIM PROJEK</a>
+            <a href="profile.html" class="nav-link">👤 PROFIL ADMIN</a>
+        </nav>
+        <a href="login.html" class="w-full py-4 text-center bg-red-500/10 text-red-500 rounded-2xl font-black hover:bg-red-500 hover:text-white transition uppercase text-[10px] tracking-widest mt-auto block text-decoration-none">LOGOUT</a>
+    </aside>
+
+    <main class="main-content">
+        <div class="mb-10">
+            <h1 class="text-5xl font-black uppercase italic tracking-tighter text-slate-900">Implementasi Klasifikasi Pasien</h1>
+            <p class="text-slate-500 font-bold mt-2">Daftar riwayat deteksi elektrokardiogram berbasis CNN.</p>
+        </div>
+
+        <div class="card overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-400 uppercase text-[10px] tracking-widest">
+                        <th class="p-5 rounded-tl-2xl">ID Pasien</th>
+                        <th class="p-5">Waktu Perekaman</th>
+                        <th class="p-5">Rata-rata BPM</th>
+                        <th class="p-5">Hasil Klasifikasi ML</th>
+                        <th class="p-5 rounded-tr-2xl text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                        <td class="p-5">#P-001</td>
+                        <td class="p-5">15 Mei 2026, 08:14</td>
+                        <td class="p-5">72 BPM</td>
+                        <td class="p-5 text-blue-600 font-black">NORMAL</td>
+                        <td class="p-5 text-center"><span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">Selesai</span></td>
+                    </tr>
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                        <td class="p-5">#P-002</td>
+                        <td class="p-5">15 Mei 2026, 09:30</td>
+                        <td class="p-5">125 BPM</td>
+                        <td class="p-5 text-red-600 font-black">TAKIKARDIA</td>
+                        <td class="p-5 text-center"><span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">Peringatan</span></td>
+                    </tr>
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-5">#P-003</td>
+                        <td class="p-5">15 Mei 2026, 11:45</td>
+                        <td class="p-5">48 BPM</td>
+                        <td class="p-5 text-yellow-600 font-black">BRADIKARDIA</td>
+                        <td class="p-5 text-center"><span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs">Pantau</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+</body>
+</html>

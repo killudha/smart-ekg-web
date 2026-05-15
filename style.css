@@ -1,4 +1,0 @@
-.bg-navy { background-color: #0f172a; }
-.sidebar { width: 280px; min-height: 100vh; background: #0f172a; position: fixed; color: white; padding: 2rem; }
-.main-content { margin-left: 280px; padding: 3rem; width: calc(100% - 280px); }
-.card-ecg { background: white; border-radius: 2rem; padding: 2rem; border: 1px solid #e2e8f0; shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }

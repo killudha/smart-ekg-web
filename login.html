@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Smart ECG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-slate-950 flex items-center justify-center min-h-screen" x-data="loginSystem()">
+
+    <div class="bg-white p-12 rounded-[4rem] shadow-2xl w-full max-w-md border-t-[16px] border-blue-600 text-center">
+        <h2 class="text-4xl font-black text-slate-800 uppercase italic tracking-tighter mb-2">Smart ECG</h2>
+        <p class="text-slate-400 font-bold text-[10px] tracking-[0.4em] uppercase mb-12">Pure ML Integration v5.5</p>
+        
+        <div class="space-y-4">
+            <input type="text" x-model="username" placeholder="Admin ID" class="w-full p-5 bg-slate-50 border-2 rounded-3xl outline-none focus:border-blue-600 transition text-lg shadow-inner">
+            <input type="password" x-model="password" placeholder="Password" class="w-full p-5 bg-slate-50 border-2 rounded-3xl outline-none focus:border-blue-600 transition text-lg shadow-inner">
+            <button @click="login()" class="w-full bg-blue-600 text-white py-5 rounded-3xl font-black text-xl shadow-xl hover:bg-blue-700 active:scale-95 transition">ACTIVATE SYSTEM</button>
+        </div>
+    </div>
+
+    <script>
+        function loginSystem() {
+            return {
+                username: '',
+                password: '',
+                login() {
+                    if (this.username === 'admin1' && this.password === 'pnj2026') {
+                        // Redirect ke halaman monitoring jika sukses
+                        window.location.href = 'monitoring.html';
+                    } else {
+                        alert('Akses Ditolak! ID atau Password salah.');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
