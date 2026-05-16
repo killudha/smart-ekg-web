@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Smart ECG System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        :root {
+            --navy: #020617;
+            --blue-accent: #2563eb;
+        }
+        body {
+            background-color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* Mencegah scroll pada body utama */
+        }
+        .sidebar {
+            background-color: var(--navy);
+            width: 280px;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+        }
+        .main-container {
+            margin-left: 280px;
+            height: 100vh;
+            width: calc(100% - 280px);
+            position: relative;
+        }
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 16px 24px;
+            margin-bottom: 8px;
+            border-radius: 20px;
+            color: #94a3b8;
+            font-weight: 800;
+            font-size: 0.875rem;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+            text-align: left;
+            text-transform: uppercase;
+        }
+        .nav-btn.active {
+            background-color: var(--blue-accent);
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+        }
+        .nav-btn:hover:not(.active) {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body x-data="dashboardManager()">
+
+    <!-- SIDEBAR FIXED -->
+    <aside class="sidebar p-6 flex flex-col shadow-2xl">
+        <div class="mb-12 px-4 mt-4">
+            <h1 class="text-3xl font-black italic text-white tracking-tighter uppercase">
+                ADMIN<span class="text-blue-500">_ECG</span>
+            </h1>
+            <p class="text-[9px] font-black text-slate-500 tracking-[0.4em] uppercase mt-1">
+                Central Intelligence
+            </p>
+        </div>
+
+        <nav class="flex-1">
+            <button @click="setPage('menu/monitoring.html')" 
+                    :class="currentPage === 'menu/monitoring.html' ? 'nav-btn active' : 'nav-btn'">
+                <span class="mr-3">📡</span> Monitoring Live
+            </button>
+
+            <button @click="setPage('menu/pasien.html')" 
+                    :class="currentPage === 'menu/pasien.html' ? 'nav-btn active' : 'nav-btn'">
+                <span class="mr-3">📂</span> Data Pasien
+            </button>
+
+            <button @click="setPage('menu/profile.html')" 
+                    :class="currentPage === 'menu/profile.html' ? 'nav-btn active' : 'nav-btn'">
+                <span class="mr-3">👤</span> Profil Admin
+            </button>
+
+            <button @click="setPage('menu/team.html')" 
+                    :class="currentPage === 'menu/team.html' ? 'nav-btn active' : 'nav-btn'">
+                <span class="mr-3">👥</span> Tim Projek
+            </button>
+        </nav>
+
+        <!-- KELUAR -->
+        <a href="index.html" 
+           class="w-full py-4 text-center bg-red-500/10 text-red-500 rounded-2xl font-black hover:bg-red-500 hover:text-white transition uppercase text-[10px] tracking-widest mt-auto block text-decoration-none shadow-lg">
+            Logout System
+        </a>
+    </aside>
+
+    <!-- CONTENT SHELL (IFRAME) -->
+    <main class="main-container">
+        <iframe :src="currentPage" name="mainFrame"></iframe>
+    </main>
+
+    <script>
+        function dashboardManager() {
+            return {
+                // Halaman awal saat dashboard dibuka
+                currentPage: 'menu/monitoring.html',
+                
+                setPage(url) {
+                    this.currentPage = url;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            background-color: #f8fafc; 
+            font-family: 'Inter', sans-serif; 
+            padding: 2rem; 
+            margin: 0;
+        }
+        .team-card { 
+            background: white; 
+            border-radius: 30px; 
+            padding: 2rem; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
+            transition: transform 0.3s ease;
+        }
+        .team-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <h1 class="text-5xl font-black uppercase italic tracking-tighter text-slate-900 mb-8">Tim Projek</h1>
+    
+    <div class="grid grid-cols-2 gap-6">
+        <div class="team-card flex items-center gap-6">
+            <div class="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl italic shadow-lg shadow-blue-200">M</div>
+            <div>
+                <h3 class="text-xl font-black text-slate-800">Maqrefa Akbar</h3>
+                <p class="text-blue-600 font-bold uppercase text-[10px] tracking-[0.2em] mb-1">2307421037</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Hardware & IoT Specialist</p>
+            </div>
+        </div>
+
+        <div class="team-card flex items-center gap-6">
+            <div class="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-2xl italic shadow-lg shadow-slate-200">G</div>
+            <div>
+                <h3 class="text-xl font-black text-slate-800">Ghea Geltra A.</h3>
+                <p class="text-blue-600 font-bold uppercase text-[10px] tracking-[0.2em] mb-1">2307421038</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Machine Learning Engineer</p>
+            </div>
+        </div>
+
+        <div class="team-card flex items-center gap-6">
+            <div class="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-2xl italic shadow-lg shadow-slate-200">N</div>
+            <div>
+                <h3 class="text-xl font-black text-slate-800">Naora Adhani</h3>
+                <p class="text-blue-600 font-bold uppercase text-[10px] tracking-[0.2em] mb-1">2307421041</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-widest">UI/UX & Frontend Dev</p>
+            </div>
+        </div>
+
+        <div class="team-card flex items-center gap-6">
+            <div class="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-2xl italic shadow-lg shadow-slate-200">S</div>
+            <div>
+                <h3 class="text-xl font-black text-slate-800">Shanazsiva Nasra</h3>
+                <p class="text-blue-600 font-bold uppercase text-[10px] tracking-[0.2em] mb-1">2307421044</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Network & Cloud Integrator</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-12 p-8 border-2 border-dashed border-slate-200 rounded-[40px] text-center">
+        <p class="text-slate-400 font-bold uppercase text-xs tracking-[0.4em]">Teknik Multimedia Jaringan • Politeknik Negeri Jakarta • 2026</p>
+    </div>
+</body>
+</html>

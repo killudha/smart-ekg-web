@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring - Smart ECG</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --navy: #020617; --blue-accent: #3b82f6; }
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; padding: 2rem; }
+        .main-content { width: 100%; }
+        .card { background: white; border-radius: 30px; padding: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        canvas { width: 100% !important; height: 350px !important; }
+        .danger-anim { border: 4px solid #ef4444; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 
+            0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 
+            70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); } 
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 
+        }
+    </style>
+</head>
+
+<body x-data="ecgEngine()">
+
+<main class="main-content">
+    <div class="flex justify-between items-end mb-6">
+        <div>
+            <h1 class="text-5xl font-black uppercase italic tracking-tighter text-slate-900">Live Analysis</h1>
+            <div class="mt-4 flex gap-3">
+                <span class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-bold shadow-sm" x-text="modelStatus"></span>
+                <span class="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-bold shadow-sm">
+                    Firebase: <span x-text="firebaseStatus"></span>
+                </span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button @click="toggleAnalysis()" 
+                    class="px-6 py-3 rounded-full font-black text-sm uppercase tracking-widest shadow-lg transition-all duration-300 transform hover:scale-105"
+                    :class="isAnalyzing ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' : 'bg-blue-600 hover:bg-blue-700 text-white'">
+                <span x-text="isAnalyzing ? '⏹ HENTIKAN AI' : '▶ MULAI ANALISIS AI'"></span>
+            </button>
+
+            <div class="bg-white rounded-full px-6 py-4 shadow font-bold text-slate-500 flex items-center gap-3 border border-slate-100">
+                <div class="w-3 h-3 rounded-full" :class="bpm > 0 ? 'bg-green-500 animate-ping' : 'bg-slate-300'"></div>
+                BPM: <span x-text="bpm" class="text-slate-800"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-10">
+        <div class="bg-slate-950 rounded-3xl p-6 relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(#00ff99 1px, transparent 1px), linear-gradient(90deg, #00ff99 1px, transparent 1px); background-size: 40px 40px;"></div>
+            <canvas id="ecgChart" class="relative z-10"></canvas>
+        </div>
+        <div class="mt-4 text-right text-xs font-black text-slate-400 uppercase tracking-widest">
+            Voltase Sensor: <span x-text="lastEcgValue" class="text-slate-900 ml-1"></span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-8">
+        <div class="card bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-xl relative overflow-hidden">
+            <div class="absolute -right-8 -top-8 text-white opacity-10 text-[15rem] leading-none select-none">❤</div>
+            <p class="text-sm mb-4 font-black tracking-[0.3em] uppercase opacity-70 text-blue-100">Heart Rate Avg</p>
+            <h1 class="text-8xl font-black flex items-baseline gap-4 relative z-10 italic">
+                <span x-text="bpm"></span><span class="text-3xl opacity-60 font-normal italic">BPM</span>
+            </h1>
+        </div>
+
+        <div class="card transition-all duration-500 shadow-xl"
+             :class="{
+                'danger-anim bg-red-50': aiLabel === 'ARITMIA' || aiLabel === 'TAKIKARDIA',
+                'border-4 border-yellow-400 bg-yellow-50': aiLabel === 'BRADIKARDIA',
+                'border-4 border-blue-600 bg-white': aiLabel === 'NORMAL' || aiLabel === 'ANALISIS JEDA',
+                'border-4 border-red-900 bg-red-100': aiLabel.includes('ERR')
+             }">
+            <div class="flex justify-between mb-6 items-center">
+                <h1 class="font-black text-slate-400 tracking-[0.4em] uppercase text-[10px]">Pure 1D-CNN Inference</h1>
+                <div class="bg-slate-900 text-white px-4 py-1.5 rounded-full text-[10px] font-black shadow-lg">
+                    <span x-text="confidence"></span>% CONFIDENCE
+                </div>
+            </div>
+            <div class="text-center py-4">
+                <h1 class="text-5xl font-black mb-6 italic tracking-tighter uppercase"
+                    :class="{
+                        'text-red-600': aiLabel === 'ARITMIA' || aiLabel === 'TAKIKARDIA',
+                        'text-yellow-600': aiLabel === 'BRADIKARDIA',
+                        'text-blue-600': aiLabel === 'NORMAL',
+                        'text-red-900': aiLabel.includes('ERR'),
+                        'text-slate-300': aiLabel.includes('WAIT') || aiLabel.includes('GATHER') || aiLabel.includes('JEDA')
+                    }" x-text="aiLabel">
+                </h1>
+                <div class="inline-block bg-slate-100 text-slate-500 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    Data Window: <span x-text="dataBuffer.length"></span> / 375
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+let globalChart = null;
+let globalTfModel = null; 
+
+function ecgEngine() {
+    return {
+        bpm: 0,
+        isAnalyzing: false, 
+        aiLabel: 'LOADING AI...',
+        confidence: 0,
+        modelStatus: 'INIT...',
+        firebaseStatus: 'OFFLINE',
+        lastEcgValue: 0,
+        dataBuffer: [],
+        incomingQueue: [],
+        inferencing: false,
+
+        init() {
+            this.initChart();
+            this.initFirebase();
+            this.loadModel();
+        },
+
+        toggleAnalysis() {
+            this.isAnalyzing = !this.isAnalyzing;
+            if (!this.isAnalyzing) {
+                this.aiLabel = 'ANALISIS JEDA';
+                this.confidence = 0;
+            }
+        },
+
+        initFirebase() {
+            const config = {
+                apiKey: "AIzaSyD7cegeyQVu5d0cRkv1dyAjzXWOz8gE-HM",
+                authDomain: "smart-ekg-tmj-6b.firebaseapp.com",
+                databaseURL: "https://smart-ekg-tmj-6b-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "smart-ekg-tmj-6b"
+            };
+
+            try {
+                if (!firebase.apps.length) firebase.initializeApp(config);
+                this.firebaseStatus = 'LIVE';
+                const dbRef = firebase.database().ref('monitoring/live_data');
+
+                dbRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
+
+                    if (data.bpm !== undefined) this.bpm = parseInt(data.bpm);
+
+                    if (data.graph_value) {
+                        let raw = data.graph_value;
+                        let newPoints = [];
+                        if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e) {}
+                        if (typeof raw === 'object' && !Array.isArray(raw)) {
+                            newPoints = Object.keys(raw).sort((a,b)=>parseInt(a)-parseInt(b)).map(k=>parseFloat(raw[k]));
+                        } else if (Array.isArray(raw)) {
+                            newPoints = raw.map(v => parseFloat(v));
+                        }
+                        newPoints = newPoints.filter(v => !isNaN(v));
+                        if (newPoints.length > 0) this.incomingQueue.push(...newPoints);
+                    }
+                });
+            } catch(e) {
+                console.error(e);
+                this.firebaseStatus = 'FAIL';
+            }
+        },
+
+        async loadModel() {
+            try {
+                this.modelStatus = 'SETTING UP...';
+                await tf.ready(); 
+                
+                this.modelStatus = 'LOADING MODEL...';
+                globalTfModel = await tf.loadGraphModel('../tfjs_model/model.json');
+                console.log('✅ AI Model berhasil dimuat', globalTfModel);
+                
+                this.modelStatus = 'MODEL ACTIVE';
+                this.aiLabel = 'ANALISIS JEDA';
+            } catch(e) {
+                console.error('MODEL FATAL ERROR:', e);
+                this.modelStatus = 'MODEL ERROR';
+                this.aiLabel = 'GAGAL LOAD';
+            }
+        },
+
+        async runInference() {
+            if (!this.isAnalyzing) {
+                this.aiLabel = 'ANALISIS JEDA';
+                return;
+            }
+            if (this.dataBuffer.length < 375) {
+                this.aiLabel = 'GATHERING DATA...';
+                return;
+            }
+            if (!globalTfModel || this.inferencing) return;
+
+            this.inferencing = true;
+
+            try {
+                const raw375 = this.dataBuffer.slice(-375);
+                let minVal = Math.min(...raw375);
+                let maxVal = Math.max(...raw375);
+                
+                const floatArray = new Float32Array(375);
+                for(let i = 0; i < 375; i++) {
+                    let v = raw375[i];
+                    if (isNaN(v) || v == null) v = 0; 
+                    floatArray[i] = (maxVal - minVal === 0) ? 0 : (v - minVal) / (maxVal - minVal);
+                }
+
+                // ==========================================
+                // FIX: MEMBUNGKUS DENGAN tf.tidy() UNTUK MEMBERSIHKAN RAM
+                // ==========================================
+                const result = tf.tidy(() => {
+                    const inputTensor = tf.tensor3d(floatArray, [1, 375, 1], 'float32');
+                    const output = globalTfModel.predict(inputTensor);
+                    
+                    let predsTensor;
+                    if (Array.isArray(output)) {
+                        predsTensor = output[0];
+                    } else if (output instanceof tf.Tensor) {
+                        predsTensor = output;
+                    } else {
+                        const key = Object.keys(output)[0];
+                        predsTensor = output[key];
+                    }
+                    
+                    // Ekstrak data array
+                    const predsArr = Array.from(predsTensor.dataSync());
+                    const score = Math.max(...predsArr);
+                    const idx = predsArr.indexOf(score);
+
+                    return { maxIdx: idx, maxScore: score };
+                });
+
+                const labels = ['NORMAL', 'TAKIKARDIA', 'BRADIKARDIA', 'ARITMIA'];
+                
+                this.aiLabel = labels[result.maxIdx] || 'UNKNOWN';
+                this.confidence = Math.round(result.maxScore * 100);
+
+                // Cek sisa memori di console F12 (angkanya harus stabil, tidak boleh terus naik)
+                console.log("Sisa Tensor di RAM:", tf.memory().numTensors);
+
+            } catch(e) {
+                console.error('INFERENCE ERROR:', e);
+                this.aiLabel = 'ERR: ' + e.message.substring(0, 15).toUpperCase();
+                this.confidence = 0;
+                this.isAnalyzing = false;
+            }
+            
+            this.inferencing = false;
+        },
+
+        initChart() {
+            const ctx = document.getElementById('ecgChart').getContext('2d');
+            if (globalChart) globalChart.destroy();
+
+            globalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 150}, (_, i) => i),
+                    datasets: [{
+                        data: Array.from({length: 150}, () => 715),
+                        borderColor: '#00ff99', borderWidth: 3, pointRadius: 0, tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { min: 400, max: 1100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    }
+                }
+            });
+
+            // ... kode konfigurasi Chart di atasnya biarkan saja ...
+
+            // FIX LAG: Batching Update Grafik setiap 50ms (Lebih ramah CPU/RAM)
+            setInterval(() => {
+                if (this.incomingQueue.length > 0 && globalChart) {
+                    
+                    // Ambil maksimal 5 data sekaligus dari antrian
+                    let pointsToProcess = Math.min(this.incomingQueue.length, 5);
+                    
+                    for(let i = 0; i < pointsToProcess; i++) {
+                        const val = this.incomingQueue.shift();
+                        this.lastEcgValue = val.toFixed(2);
+                        
+                        // Geser data grafik
+                        globalChart.data.datasets[0].data.shift();
+                        globalChart.data.datasets[0].data.push(val);
+                        
+                        // Masukkan ke memori AI
+                        this.dataBuffer.push(val);
+                        if (this.dataBuffer.length > 375) this.dataBuffer.shift();
+                    }
+                    
+                    // Update canvas cukup 1x setelah batch selesai
+                    globalChart.update('none');
+                }
+            }, 50);
+
+            // Loop inference AI tetap setiap 1.5 detik
+            setInterval(() => { this.runInference(); }, 1500);
+        }
+    };
+}
+</script>
+</body>
+</html>
